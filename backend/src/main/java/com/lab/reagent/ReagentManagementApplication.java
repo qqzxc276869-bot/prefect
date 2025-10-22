@@ -15,10 +15,10 @@ public class ReagentManagementApplication {
         SpringApplication.run(ReagentManagementApplication.class, args);
         System.out.println("========================================");
         System.out.println("实验室化学试剂与耗材库存管理系统启动成功！");
-        System.out.println("访问地址：http://localhost:8081");
         System.out.println("========================================");
     }
 }
+
 
 
 

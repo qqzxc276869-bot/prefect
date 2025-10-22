@@ -46,6 +46,7 @@ public class StockService {
             // 创建新库存
             Inventory inventory = new Inventory();
             inventory.setReagentId(record.getReagentId());
+            inventory.setLocationId(record.getLocationId());
             inventory.setBatchNo(record.getBatchNo());
             inventory.setQuantity(record.getQuantity());
             inventory.setWarningThreshold(java.math.BigDecimal.TEN);

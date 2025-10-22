@@ -50,3 +50,4 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
 
 
 
+

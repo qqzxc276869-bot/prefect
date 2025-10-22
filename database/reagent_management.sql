@@ -209,3 +209,4 @@ INSERT INTO `inventory` (`reagent_id`, `location_id`, `batch_no`, `quantity`, `w
 
 
 
+

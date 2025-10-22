@@ -24,6 +24,8 @@ public class StockInRecord implements Serializable {
     
     private Long inventoryId;
     
+    private Long locationId;
+    
     private String batchNo;
     
     private BigDecimal quantity;
@@ -42,6 +44,7 @@ public class StockInRecord implements Serializable {
     
     private LocalDateTime createTime;
 }
+
 
 
 

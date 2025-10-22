@@ -95,6 +95,37 @@
               </el-col>
             </el-row>
             
+            <!-- 图表区域 -->
+            <el-row :gutter="20" style="margin-top: 20px;">
+              <el-col :span="12">
+                <el-card>
+                  <div slot="header">用户角色分布</div>
+                  <ECharts :option="userRoleChart" height="250px"></ECharts>
+                </el-card>
+              </el-col>
+              <el-col :span="12">
+                <el-card>
+                  <div slot="header">库存状态统计</div>
+                  <ECharts :option="inventoryStatusChart" height="250px"></ECharts>
+                </el-card>
+              </el-col>
+            </el-row>
+            
+            <el-row :gutter="20" style="margin-top: 20px;">
+              <el-col :span="12">
+                <el-card>
+                  <div slot="header">申请状态分布</div>
+                  <ECharts :option="applicationStatusChart" height="250px"></ECharts>
+                </el-card>
+              </el-col>
+              <el-col :span="12">
+                <el-card>
+                  <div slot="header">月度申请趋势</div>
+                  <ECharts :option="monthlyTrendChart" height="250px"></ECharts>
+                </el-card>
+              </el-col>
+            </el-row>
+            
             <el-row :gutter="20" style="margin-top: 20px;">
               <el-col :span="24">
                 <el-card>
@@ -365,9 +396,13 @@ import { getUserList, addUser, updateUser, updateUserStatus, deleteUser } from '
 import { getInventoryList, getWarningList } from '@/api/inventory'
 import { getAllApplications } from '@/api/application'
 import { getCategoryList, addCategory, deleteCategory as delCategory, getLocationList, addLocation, deleteLocation as delLocation } from '@/api/base'
+import ECharts from '@/components/ECharts.vue'
 
 export default {
   name: 'AdminIndex',
+  components: {
+    ECharts
+  },
   data() {
     return {
       activeMenu: 'dashboard',
@@ -416,7 +451,12 @@ export default {
         shelfNo: '',
         fullLocation: '',
         description: ''
-      }
+      },
+      // 图表配置
+      userRoleChart: {},
+      inventoryStatusChart: {},
+      applicationStatusChart: {},
+      monthlyTrendChart: {}
     }
   },
   mounted() {
@@ -442,9 +482,11 @@ export default {
     loadDashboard() {
       getUserList().then(res => {
         this.userCount = res.data.length
+        this.generateUserRoleChart(res.data)
       })
       getInventoryList({}).then(res => {
         this.inventoryCount = res.data.length
+        this.generateInventoryStatusChart(res.data)
       })
       getWarningList().then(res => {
         this.warningList = res.data
@@ -452,6 +494,8 @@ export default {
       })
       getAllApplications().then(res => {
         this.applicationCount = res.data.length
+        this.generateApplicationStatusChart(res.data)
+        this.generateMonthlyTrendChart(res.data)
       })
     },
     loadUsers() {
@@ -606,6 +650,234 @@ export default {
         this.$store.dispatch('logout')
         this.$router.push('/login')
       })
+    },
+    
+    // 生成用户角色分布饼图
+    generateUserRoleChart(userList) {
+      const roleCount = {
+        'ADMIN': 0,
+        'TEACHER': 0,
+        'STUDENT': 0
+      }
+      
+      userList.forEach(user => {
+        roleCount[user.role]++
+      })
+      
+      this.userRoleChart = {
+        title: {
+          text: '用户角色分布',
+          left: 'center',
+          textStyle: {
+            fontSize: 14
+          },
+          top: 10
+        },
+        tooltip: {
+          trigger: 'item',
+          formatter: '{a} <br/>{b}: {c} ({d}%)'
+        },
+        legend: {
+          orient: 'vertical',
+          left: 'left',
+          data: ['系统管理员', '老师', '学生'],
+          top: 30
+        },
+        series: [
+          {
+            name: '用户角色',
+            type: 'pie',
+            radius: '45%',
+            center: ['50%', '60%'],
+            data: [
+              { value: roleCount.ADMIN, name: '系统管理员', itemStyle: { color: '#F56C6C' } },
+              { value: roleCount.TEACHER, name: '老师', itemStyle: { color: '#67C23A' } },
+              { value: roleCount.STUDENT, name: '学生', itemStyle: { color: '#409EFF' } }
+            ],
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)'
+              }
+            }
+          }
+        ]
+      }
+    },
+    
+    // 生成库存状态柱状图
+    generateInventoryStatusChart(inventoryList) {
+      const statusCount = {
+        'NORMAL': 0,
+        'LOW': 0,
+        'EXPIRING': 0,
+        'EXPIRED': 0
+      }
+      
+      inventoryList.forEach(inventory => {
+        statusCount[inventory.status]++
+      })
+      
+      this.inventoryStatusChart = {
+        title: {
+          text: '库存状态统计',
+          left: 'center',
+          textStyle: {
+            fontSize: 16
+          }
+        },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'shadow'
+          }
+        },
+        xAxis: {
+          type: 'category',
+          data: ['正常', '库存不足', '即将过期', '已过期']
+        },
+        yAxis: {
+          type: 'value'
+        },
+        series: [
+          {
+            name: '库存数量',
+            type: 'bar',
+            data: [
+              { value: statusCount.NORMAL, itemStyle: { color: '#67C23A' } },
+              { value: statusCount.LOW, itemStyle: { color: '#E6A23C' } },
+              { value: statusCount.EXPIRING, itemStyle: { color: '#F56C6C' } },
+              { value: statusCount.EXPIRED, itemStyle: { color: '#909399' } }
+            ],
+            barWidth: '60%'
+          }
+        ]
+      }
+    },
+    
+    // 生成申请状态分布饼图
+    generateApplicationStatusChart(applicationList) {
+      const statusCount = {
+        'PENDING': 0,
+        'APPROVED': 0,
+        'REJECTED': 0,
+        'COMPLETED': 0
+      }
+      
+      applicationList.forEach(application => {
+        statusCount[application.status]++
+      })
+      
+      this.applicationStatusChart = {
+        title: {
+          text: '申请状态分布',
+          left: 'center',
+          textStyle: {
+            fontSize: 16
+          }
+        },
+        tooltip: {
+          trigger: 'item',
+          formatter: '{a} <br/>{b}: {c} ({d}%)'
+        },
+        legend: {
+          orient: 'vertical',
+          left: 'left',
+          data: ['待审核', '已通过', '已拒绝', '已完成']
+        },
+        series: [
+          {
+            name: '申请状态',
+            type: 'pie',
+            radius: '50%',
+            center: ['50%', '60%'],
+            data: [
+              { value: statusCount.PENDING, name: '待审核', itemStyle: { color: '#E6A23C' } },
+              { value: statusCount.APPROVED, name: '已通过', itemStyle: { color: '#67C23A' } },
+              { value: statusCount.REJECTED, name: '已拒绝', itemStyle: { color: '#F56C6C' } },
+              { value: statusCount.COMPLETED, name: '已完成', itemStyle: { color: '#409EFF' } }
+            ],
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)'
+              }
+            }
+          }
+        ]
+      }
+    },
+    
+    // 生成月度申请趋势图
+    generateMonthlyTrendChart(applicationList) {
+      // 获取最近6个月的数据
+      const months = []
+      const counts = []
+      
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date()
+        date.setMonth(date.getMonth() - i)
+        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        months.push(month)
+        
+        // 统计该月的申请数量
+        const count = applicationList.filter(app => {
+          const appDate = new Date(app.createTime)
+          const appMonth = `${appDate.getFullYear()}-${String(appDate.getMonth() + 1).padStart(2, '0')}`
+          return appMonth === month
+        }).length
+        
+        counts.push(count)
+      }
+      
+      this.monthlyTrendChart = {
+        title: {
+          text: '月度申请趋势',
+          left: 'center',
+          textStyle: {
+            fontSize: 16
+          }
+        },
+        tooltip: {
+          trigger: 'axis'
+        },
+        xAxis: {
+          type: 'category',
+          data: months
+        },
+        yAxis: {
+          type: 'value'
+        },
+        series: [
+          {
+            name: '申请数量',
+            type: 'line',
+            data: counts,
+            smooth: true,
+            lineStyle: {
+              color: '#409EFF'
+            },
+            itemStyle: {
+              color: '#409EFF'
+            },
+            areaStyle: {
+              color: {
+                type: 'linear',
+                x: 0,
+                y: 0,
+                x2: 0,
+                y2: 1,
+                colorStops: [
+                  { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
+                  { offset: 1, color: 'rgba(64, 158, 255, 0.1)' }
+                ]
+              }
+            }
+          }
+        ]
+      }
     }
   }
 }
@@ -619,6 +891,12 @@ export default {
 
 .el-aside {
   height: calc(100vh - 60px);
+}
+
+.el-main {
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .el-menu {
@@ -655,6 +933,22 @@ export default {
   font-size: 14px;
   color: #999;
   margin-top: 5px;
+}
+
+/* 图表容器样式 */
+.el-card {
+  margin-bottom: 20px;
+}
+
+.el-card .el-card__body {
+  padding: 20px;
+}
+
+/* 确保图表能够正常显示 */
+.chart-container {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
 }
 </style>
 

@@ -116,6 +116,16 @@
                 <el-form-item label="采购单价">
                   <el-input-number v-model="stockInForm.purchasePrice" :min="0" :precision="2"></el-input-number>
                 </el-form-item>
+                <el-form-item label="存放位置" required>
+                  <el-select v-model="stockInForm.locationId" placeholder="请选择存放位置" style="width: 100%;">
+                    <el-option
+                      v-for="item in locationList"
+                      :key="item.id"
+                      :label="item.fullLocation"
+                      :value="item.id"
+                    ></el-option>
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="备注">
                   <el-input type="textarea" v-model="stockInForm.remark"></el-input>
                 </el-form-item>
@@ -271,6 +281,7 @@ import { getInventoryList, getWarningList, updateThreshold } from '@/api/invento
 import { getPendingApplications, getAllApplications, reviewApplication } from '@/api/application'
 import { stockIn, stockOut, getStockInList, getStockOutList } from '@/api/stock'
 import { getReagentList } from '@/api/reagent'
+import { getLocationList } from '@/api/base'
 
 export default {
   name: 'TeacherIndex',
@@ -281,6 +292,7 @@ export default {
       searchName: '',
       inventoryList: [],
       reagentList: [],
+      locationList: [],
       pendingList: [],
       approvedList: [],
       warningList: [],
@@ -294,6 +306,7 @@ export default {
         expiryDate: '',
         supplier: '',
         purchasePrice: 0,
+        locationId: null,
         remark: ''
       },
       stockOutForm: {
@@ -316,6 +329,7 @@ export default {
   mounted() {
     this.loadInventory()
     this.loadReagents()
+    this.loadLocations()
   },
   methods: {
     handleMenuSelect(index) {
@@ -338,6 +352,11 @@ export default {
     loadReagents() {
       getReagentList().then(res => {
         this.reagentList = res.data
+      })
+    },
+    loadLocations() {
+      getLocationList().then(res => {
+        this.locationList = res.data
       })
     },
     loadPendingApplications() {
@@ -378,6 +397,7 @@ export default {
         expiryDate: '',
         supplier: '',
         purchasePrice: 0,
+        locationId: null,
         remark: ''
       }
     },
@@ -464,6 +484,7 @@ export default {
   border-right: none;
 }
 </style>
+
 
 
 
