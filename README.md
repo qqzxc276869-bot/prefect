@@ -2,7 +2,19 @@
 
 ## 项目简介
 
-基于 SpringBoot + Vue + MySQL 的实验室化学试剂与耗材库存管理系统，支持三种用户角色（学生、老师、管理员），实现试剂的库存管理、申领审批、出入库管理等核心功能。
+基于 SpringBoot + Vue + MySQL 的**企业级实验室管理系统**，支持三种用户角色（学生、老师、管理员），实现试剂的库存管理、申领审批、出入库管理等核心功能。
+
+### 🎉 v2.0.0 重大更新
+
+新增五大强大模块，全面提升实验室管理水平：
+
+1. **安全与合规模块** - GHS/MSDS管理、智能存储不兼容警告、SOP培训准入
+2. **采购与预算模块** - 课题组预算管理、采购工作流、成本核算分摊
+3. **全生命周期追踪** - 二维码/RFID集成、试剂状态跟踪、可视化库存
+4. **废弃物管理模块** - 废液/固废登记、合规性追踪、标签自动生成
+5. **AI智能分析** - 消耗预测、实验模式识别、合规性审计助手
+
+> 详细功能介绍请查看 [新模块功能说明.md](新模块功能说明.md)
 
 ## 技术栈
 
@@ -44,6 +56,7 @@
 
 系统包含以下主要数据表：
 
+### 基础模块（8个表）
 1. **sys_user**: 用户表
 2. **reagent**: 试剂信息表
 3. **reagent_category**: 试剂分类表
@@ -53,7 +66,31 @@
 7. **stock_out_record**: 出库记录表
 8. **application**: 领用申请表
 
-详细的数据库设计请查看 `database/reagent_management.sql`
+### 新增模块（20个表）⭐
+9. **ghs_msds**: GHS/MSDS结构化数据表
+10. **storage_location_attributes**: 库位属性表
+11. **storage_incompatibility_rules**: 存储不兼容规则表
+12. **storage_warning_log**: 存储警告日志表
+13. **sop_document**: SOP标准操作规程表
+14. **sop_training_record**: SOP培训记录表
+15. **research_group**: 课题组/项目表
+16. **research_group_member**: 课题组成员表
+17. **procurement_request**: 采购申请表
+18. **budget_transaction**: 预算使用记录表
+19. **reagent_lifecycle**: 试剂生命周期记录表
+20. **storage_location_map**: 库位可视化配置表
+21. **storage_location_coordinate**: 库位坐标表
+22. **scan_operation_log**: 扫码操作日志表
+23. **waste_category**: 废弃物类别表
+24. **waste_disposal_record**: 废弃物登记表
+25. **consumption_pattern**: 消耗模式分析表
+26. **forecasting_record**: 智能预测记录表
+27. **experiment_pattern**: 实验模式识别表
+28. **experiment_activity**: 实验活动记录表
+
+详细的数据库设计请查看：
+- 基础模块：`database/complete_database.sql`
+- 新增模块：`database/modules_extension.sql`
 
 ## 项目结构
 
@@ -94,7 +131,7 @@ reagent-management/
 │   ├── package.json
 │   └── vue.config.js
 ├── database/                   # 数据库脚本
-│   └── reagent_management.sql
+│   └── complete_databae.sql
 └── README.md                   # 项目说明
 ```
 
@@ -110,12 +147,25 @@ reagent-management/
 
 ### 1. 数据库初始化
 
+#### 方式一：完整部署（推荐新用户）
+
 ```bash
 # 登录MySQL
 mysql -u root -p
 
-# 执行数据库脚本
-source database/reagent_management.sql
+# 执行完整数据库脚本（包含基础模块 + 新模块）
+source database/complete_database.sql
+source database/modules_extension.sql
+```
+
+#### 方式二：增量部署（已有旧版本）
+
+```bash
+# 只执行新模块扩展脚本
+mysql -u root -p reagent_management < database/modules_extension.sql
+
+# 可选：插入测试数据
+mysql -u root -p reagent_management < database/test_modules.sql
 ```
 
 ### 2. 后端启动
@@ -302,6 +352,116 @@ npm run serve
 - 检查密码是否正确（默认都是 123456）
 - 查看后端控制台日志
 
+## 新模块快速开始 🚀
+
+详细的新模块部署和使用说明，请查看以下文档：
+
+1. **[新模块功能说明.md](新模块功能说明.md)** - 完整功能介绍（~500行）
+2. **[快速开始指南.md](快速开始指南.md)** - 5分钟快速部署
+3. **[部署检查清单.md](部署检查清单.md)** - 完整的测试清单
+4. **[项目完成总结.md](项目完成总结.md)** - 项目开发总结
+
+### 核心API接口（新增39个）
+
+#### 安全与合规
+- `GET /ghs/reagent/{reagentId}` - 获取试剂MSDS信息
+- `POST /storage/compatibility/check` - 检查存储兼容性
+- `GET /sop/training/check` - 检查SOP培训状态
+
+#### 采购与预算
+- `POST /research-group/save` - 创建课题组
+- `POST /procurement/create` - 创建采购申请
+- `POST /procurement/approve/pi` - PI审批
+- `POST /procurement/approve/admin` - 管理员下单
+
+#### 全生命周期追踪
+- `GET /lifecycle/scan/{qrCode}` - 扫码查询试剂
+- `POST /lifecycle/mark-opened` - 标记为已开封
+- `POST /lifecycle/record-usage` - 记录使用
+- `POST /lifecycle/transfer` - 转移库位
+
+#### 废弃物管理
+- `POST /waste/create` - 创建废弃物登记
+- `GET /waste/categories` - 获取废弃物类别
+- `GET /waste/label/{id}` - 生成废弃物标签
+
+#### 智能预测
+- `POST /forecasting/generate/{reagentId}` - 生成预测
+- `GET /forecasting/upcoming` - 获取即将需要采购的试剂
+
+完整API文档见 [快速开始指南.md](快速开始指南.md)
+
+---
+
+## 功能特色 ✨
+
+### 🛡️ 安全第一
+- **GHS标准化管理**：符合国际化学品管理标准
+- **智能兼容性检查**：自动识别并阻止高危操作
+- **SOP强制培训**：高危试剂领用前必须完成培训
+- **全程审计追踪**：所有操作留有记录
+
+### 💰 精细化管理
+- **课题组预算**：精确到每笔交易的成本核算
+- **多级审批流程**：灵活的采购工作流
+- **实时预算跟踪**：自动扣减，实时可见
+- **成本分析报告**：AI辅助的成本优化建议
+
+### 📱 全程可追溯
+- **二维码标识**：每个试剂唯一标识
+- **生命周期管理**：从入库到报废完整追踪
+- **状态实时更新**：密封/开封/使用/空
+- **可视化库存**：图形化的库位展示
+
+### ♻️ 合规管理
+- **废弃物登记**：完整的废液/固废管理流程
+- **自动标签生成**：符合EHS规范
+- **合规追踪**：从产生到处置的全程记录
+- **审计报告**：一键生成合规报告
+
+### 🤖 智能决策
+- **消耗预测**：基于历史数据的智能预测
+- **自动提醒**：提前提醒采购需求
+- **模式识别**：自动识别实验类型
+- **AI助手**：智能问答和成本分析
+
+---
+
+## 技术亮点 🔥
+
+| 特性 | 技术实现 |
+|-----|---------|
+| **智能算法** | 时序预测、变异系数分析、置信度计算 |
+| **规则引擎** | 存储不兼容规则自动匹配 |
+| **状态机** | 试剂生命周期状态转换 |
+| **工作流** | 多级审批流程引擎 |
+| **二维码** | 唯一标识生成与追踪 |
+| **JSON存储** | 灵活的结构化数据存储 |
+| **RESTful API** | 标准化的接口设计 |
+| **分层架构** | Entity-Mapper-Service-Controller |
+
+---
+
+## 版本历史 📋
+
+### v2.0.0 (2025-11-06)
+- ✅ 新增安全与合规模块（GHS/MSDS、存储兼容性、SOP）
+- ✅ 新增采购与预算模块（课题组、工作流、成本核算）
+- ✅ 新增全生命周期追踪模块（二维码、状态跟踪、可视化）
+- ✅ 新增废弃物管理模块（登记、合规追踪、标签）
+- ✅ 新增AI智能分析模块（预测、识别、审计）
+- ✅ 20个新数据表
+- ✅ 39个新API接口
+- ✅ 完整的文档体系
+
+### v1.0.0 (原始版本)
+- ✅ 基础库存管理
+- ✅ 申领审批流程
+- ✅ 三角色权限管理
+- ✅ 出入库记录
+
+---
+
 ## 许可证
 
 本项目仅供学习和研究使用。
@@ -310,9 +470,14 @@ npm run serve
 
 如有问题或建议，欢迎提交 Issue。
 
+**技术支持**：
+- 📖 查看文档：[新模块功能说明.md](新模块功能说明.md)
+- 🚀 快速开始：[快速开始指南.md](快速开始指南.md)
+- ✅ 测试验证：[部署检查清单.md](部署检查清单.md)
+
 ---
 
-**祝您使用愉快！**
+**祝您使用愉快！** 🎉🎊🚀
 
 
 

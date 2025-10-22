@@ -43,6 +43,8 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
             "WHERE i.status IN ('LOW', 'EXPIRING', 'EXPIRED') " +
             "ORDER BY i.status, i.update_time DESC")
     List<InventoryVO> selectWarningList();
+    
+
 }
 
 

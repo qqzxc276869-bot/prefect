@@ -15,32 +15,121 @@
       <!-- 主体 -->
       <el-container>
         <!-- 侧边栏 -->
-        <el-aside width="200px" style="background: #f5f5f5;">
+        <el-aside width="220px" style="background: #f5f5f5;">
           <el-menu :default-active="activeMenu" @select="handleMenuSelect">
-            <el-menu-item index="dashboard">
-              <i class="el-icon-data-line"></i>
-              <span>数据总览</span>
+            <!-- 基础管理 -->
+            <el-submenu index="basic">
+              <template slot="title">
+                <i class="el-icon-s-tools"></i>
+                <span>基础管理</span>
+              </template>
+              <el-menu-item index="dashboard">
+                <i class="el-icon-data-line"></i>
+                <span>数据总览</span>
+              </el-menu-item>
+              <el-menu-item index="users">
+                <i class="el-icon-user"></i>
+                <span>用户管理</span>
+              </el-menu-item>
+              <el-menu-item index="inventory">
+                <i class="el-icon-document"></i>
+                <span>库存查看</span>
+              </el-menu-item>
+              <el-menu-item index="applications">
+                <i class="el-icon-s-order"></i>
+                <span>申请记录</span>
+              </el-menu-item>
+              <el-menu-item index="category">
+                <i class="el-icon-folder"></i>
+                <span>试剂分类</span>
+              </el-menu-item>
+              <el-menu-item index="location">
+                <i class="el-icon-location"></i>
+                <span>存放位置</span>
+              </el-menu-item>
+            </el-submenu>
+
+            <!-- 安全与合规 -->
+            <el-submenu index="safety">
+              <template slot="title">
+                <i class="el-icon-s-flag"></i>
+                <span>安全与合规</span>
+              </template>
+              <el-menu-item index="ghs">
+                <i class="el-icon-warning-outline"></i>
+                <span>GHS/MSDS</span>
+              </el-menu-item>
+              <el-menu-item index="storage-compat">
+                <i class="el-icon-box"></i>
+                <span>存储兼容性</span>
+              </el-menu-item>
+              <el-menu-item index="sop">
+                <i class="el-icon-document"></i>
+                <span>SOP管理</span>
+              </el-menu-item>
+            </el-submenu>
+
+            <!-- 预算与采购 -->
+            <el-submenu index="finance">
+              <template slot="title">
+                <i class="el-icon-coin"></i>
+                <span>预算与采购</span>
+              </template>
+              <el-menu-item index="research-groups">
+                <i class="el-icon-s-custom"></i>
+                <span>课题组管理</span>
+              </el-menu-item>
+              <el-menu-item index="procurement">
+                <i class="el-icon-shopping-cart-2"></i>
+                <span>采购管理</span>
+              </el-menu-item>
+              <el-menu-item index="budget">
+                <i class="el-icon-money"></i>
+                <span>预算报表</span>
+              </el-menu-item>
+            </el-submenu>
+
+            <!-- 生命周期追踪 -->
+            <el-submenu index="lifecycle">
+              <template slot="title">
+                <i class="el-icon-link"></i>
+                <span>生命周期</span>
+              </template>
+              <el-menu-item index="qrcode">
+                <i class="el-icon-picture-outline"></i>
+                <span>二维码管理</span>
+              </el-menu-item>
+              <el-menu-item index="location-map">
+                <i class="el-icon-map-location"></i>
+                <span>库位可视化</span>
+              </el-menu-item>
+            </el-submenu>
+
+            <!-- 废弃物管理 -->
+            <el-menu-item index="waste">
+              <i class="el-icon-delete"></i>
+              <span>废弃物管理</span>
             </el-menu-item>
-            <el-menu-item index="users">
-              <i class="el-icon-user"></i>
-              <span>用户管理</span>
-            </el-menu-item>
-            <el-menu-item index="inventory">
-              <i class="el-icon-document"></i>
-              <span>库存查看</span>
-            </el-menu-item>
-            <el-menu-item index="applications">
-              <i class="el-icon-s-order"></i>
-              <span>申请记录</span>
-            </el-menu-item>
-            <el-menu-item index="category">
-              <i class="el-icon-folder"></i>
-              <span>试剂分类</span>
-            </el-menu-item>
-            <el-menu-item index="location">
-              <i class="el-icon-location"></i>
-              <span>存放位置</span>
-            </el-menu-item>
+
+            <!-- 智能分析 -->
+            <el-submenu index="analytics">
+              <template slot="title">
+                <i class="el-icon-data-analysis"></i>
+                <span>智能分析</span>
+              </template>
+              <el-menu-item index="forecasting">
+                <i class="el-icon-trend-charts"></i>
+                <span>消耗预测</span>
+              </el-menu-item>
+              <el-menu-item index="patterns">
+                <i class="el-icon-data-board"></i>
+                <span>实验模式</span>
+              </el-menu-item>
+              <el-menu-item index="audit">
+                <i class="el-icon-document-checked"></i>
+                <span>合规审计</span>
+              </el-menu-item>
+            </el-submenu>
           </el-menu>
         </el-aside>
         
@@ -48,6 +137,10 @@
         <el-main>
           <!-- 数据总览 -->
           <div v-show="activeMenu === 'dashboard'">
+            <div style="text-align: right; margin-bottom: 10px;">
+              <el-button size="small" type="primary" @click="aiDialogVisible = true">AI助手</el-button>
+              <el-button size="small" style="margin-left: 8px;" @click="handleGenerateAnnouncement">AI生成公告</el-button>
+            </div>
             <el-row :gutter="20">
               <el-col :span="6">
                 <el-card class="stat-card">
@@ -299,6 +392,66 @@
               </el-table>
             </el-card>
           </div>
+
+          <!-- GHS/MSDS管理 -->
+          <div v-show="activeMenu === 'ghs'">
+            <GhsManagement />
+          </div>
+
+          <!-- 存储兼容性 -->
+          <div v-show="activeMenu === 'storage-compat'">
+            <StorageCompatibility />
+          </div>
+
+          <!-- SOP管理 -->
+          <div v-show="activeMenu === 'sop'">
+            <SopManagement />
+          </div>
+
+          <!-- 课题组管理 -->
+          <div v-show="activeMenu === 'research-groups'">
+            <ResearchGroupManagement />
+          </div>
+
+          <!-- 采购管理 -->
+          <div v-show="activeMenu === 'procurement'">
+            <ProcurementManagement />
+          </div>
+
+          <!-- 预算报表 -->
+          <div v-show="activeMenu === 'budget'">
+            <BudgetReport />
+          </div>
+
+          <!-- 二维码管理 -->
+          <div v-show="activeMenu === 'qrcode'">
+            <QrcodeManagement />
+          </div>
+
+          <!-- 库位可视化 -->
+          <div v-show="activeMenu === 'location-map'">
+            <LocationMap />
+          </div>
+
+          <!-- 废弃物管理 -->
+          <div v-show="activeMenu === 'waste'">
+            <WasteManagement />
+          </div>
+
+          <!-- 消耗预测 -->
+          <div v-show="activeMenu === 'forecasting'">
+            <ConsumptionForecast />
+          </div>
+
+          <!-- 实验模式 -->
+          <div v-show="activeMenu === 'patterns'">
+            <ExperimentPattern />
+          </div>
+
+          <!-- 合规审计 -->
+          <div v-show="activeMenu === 'audit'">
+            <ComplianceAudit />
+          </div>
         </el-main>
       </el-container>
     </el-container>
@@ -388,6 +541,30 @@
         <el-button type="primary" @click="saveLocation">确定</el-button>
       </span>
     </el-dialog>
+    
+    <!-- AI 助手对话框 -->
+    <el-dialog title="AI 助手" :visible.sync="aiDialogVisible" width="640px">
+      <div>
+        <el-input
+          type="textarea"
+          :rows="5"
+          placeholder="请输入你的问题，例如：根据最近的出库记录，生成盐酸的补货建议"
+          v-model="aiInput"
+          :disabled="aiLoading"
+        />
+        <div style="margin-top: 10px; text-align: right;">
+          <el-button @click="aiDialogVisible = false" :disabled="aiLoading">关闭</el-button>
+          <el-button type="primary" :loading="aiLoading" :disabled="!aiInput" @click="handleAiSend">发送</el-button>
+        </div>
+        <el-divider></el-divider>
+        <el-alert v-if="aiError" :title="aiError" type="error" show-icon closable @close="aiError=''"/>
+        <div v-if="aiOutput" style="white-space: pre-wrap; min-height: 120px;">{{ aiOutput }}</div>
+        <div v-else-if="!aiLoading" style="min-height: 60px; color: #999;">模型回复将显示在这里</div>
+        <div style="margin-top: 10px; text-align: right;">
+          <el-button size="mini" @click="copyAiOutput" :disabled="!aiOutput">复制内容</el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -397,11 +574,36 @@ import { getInventoryList, getWarningList } from '@/api/inventory'
 import { getAllApplications } from '@/api/application'
 import { getCategoryList, addCategory, deleteCategory as delCategory, getLocationList, addLocation, deleteLocation as delLocation } from '@/api/base'
 import ECharts from '@/components/ECharts.vue'
+import GhsManagement from '@/components/GhsManagement.vue'
+import ResearchGroupManagement from '@/components/ResearchGroupManagement.vue'
+import WasteManagement from '@/components/WasteManagement.vue'
+import StorageCompatibility from '@/components/StorageCompatibility.vue'
+import SopManagement from '@/components/SopManagement.vue'
+import ProcurementManagement from '@/components/ProcurementManagement.vue'
+import BudgetReport from '@/components/BudgetReport.vue'
+import QrcodeManagement from '@/components/QrcodeManagement.vue'
+import LocationMap from '@/components/LocationMap.vue'
+import ConsumptionForecast from '@/components/ConsumptionForecast.vue'
+import ExperimentPattern from '@/components/ExperimentPattern.vue'
+import ComplianceAudit from '@/components/ComplianceAudit.vue'
+import { aiChat, generateAnnouncement } from '@/api/ai'
 
 export default {
   name: 'AdminIndex',
   components: {
-    ECharts
+    ECharts,
+    GhsManagement,
+    ResearchGroupManagement,
+    WasteManagement,
+    StorageCompatibility,
+    SopManagement,
+    ProcurementManagement,
+    BudgetReport,
+    QrcodeManagement,
+    LocationMap,
+    ConsumptionForecast,
+    ExperimentPattern,
+    ComplianceAudit
   },
   data() {
     return {
@@ -456,13 +658,86 @@ export default {
       userRoleChart: {},
       inventoryStatusChart: {},
       applicationStatusChart: {},
-      monthlyTrendChart: {}
+      monthlyTrendChart: {},
+      // AI 助手
+      aiDialogVisible: false,
+      aiInput: '',
+      aiOutput: '',
+      aiLoading: false,
+      aiError: ''
     }
   },
   mounted() {
     this.loadDashboard()
   },
   methods: {
+    handleAiSend() {
+      if (!this.aiInput) return
+      this.aiLoading = true
+      this.aiError = ''
+      this.aiOutput = ''
+      
+      aiChat(this.aiInput)
+        .then(response => {
+          this.aiOutput = response.data
+        })
+        .catch(error => {
+          this.aiError = error.message || '请求失败，请稍后再试'
+        })
+        .finally(() => {
+          this.aiLoading = false
+        })
+    },
+    handleGenerateAnnouncement() {
+      this.$prompt('请输入公告主题与要点（例如：危险化学品管理规范更新，下周三培训）', 'AI生成公告', {
+        confirmButtonText: '下一步',
+        cancelButtonText: '取消'
+      }).then(({ value: topic }) => {
+        this.$prompt('请输入公告详情（时间/地点/要求/适用对象等）', 'AI生成公告', {
+          confirmButtonText: '生成',
+          cancelButtonText: '取消'
+        }).then(({ value: details }) => {
+          generateAnnouncement({ topic: topic || '', details: details || '', audience: '全体师生', tone: '通知', model: 'qwen2.5:0.5b' })
+            .then(res => {
+              const d = res.data || {}
+              const text = (d.title ? ('【' + d.title + '】\n') : '') + (d.summary ? (d.summary + '\n\n') : '') + (d.content || '')
+              this.$alert(text || 'AI未返回内容', '生成的公告', { confirmButtonText: '确定' })
+            })
+            .catch(err => {
+              this.$message.error('AI公告生成失败：' + (err.message || ''))
+            })
+        })
+      }).catch(() => {})
+    },
+    copyAiOutput() {
+      if (!this.aiOutput) return
+      navigator.clipboard.writeText(this.aiOutput)
+        .then(() => {
+          this.$message.success('已复制到剪贴板')
+        })
+        .catch(() => {
+          this.$message.error('复制失败，请手动复制')
+        })
+    },
+    
+    loadDashboard() {
+      
+      // Create a temporary textarea element to copy text
+      const textarea = document.createElement('textarea');
+      textarea.value = this.aiOutput;
+      document.body.appendChild(textarea);
+      textarea.select();
+      
+      try {
+        document.execCommand('copy');
+        this.$message.success('内容已复制到剪贴板');
+      } catch (err) {
+        this.$message.error('复制失败，请手动复制');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    },
+    
     handleMenuSelect(index) {
       this.activeMenu = index
       if (index === 'users') {
@@ -879,7 +1154,87 @@ export default {
         ]
       }
     }
-  }
+    },
+    // AI 助手：发送
+    handleAiSend() {
+      if (!this.aiInput || this.aiLoading) return
+      this.aiLoading = true
+      this.aiError = ''
+      this.aiOutput = ''
+      const timeoutMs = 60000  // 60秒超时，支持各种AI模型
+      const forceTimer = setTimeout(() => {
+        if (this.aiLoading) {
+          this.aiLoading = false
+          this.aiError = '请求超时，请稍后重试'
+        }
+      }, timeoutMs)
+      aiChat({
+        model: 'qwen2.5:0.5b',
+        messages: [
+          { role: 'system', content: '你是一个实验室试剂管理系统的智能助手。请务必使用中文回复所有问题，不要使用英文。' },
+          { role: 'user', content: this.aiInput }
+        ]
+      }).then(res => {
+        if (res && res.data && res.data.content) {
+          this.aiOutput = res.data.content
+        } else if (res && res.data) {
+          this.aiOutput = res.data
+        } else {
+          this.aiOutput = '获取回复失败，请重试'
+        }
+      }).catch(err => {
+        console.error('AI请求错误:', err)
+        this.aiError = (err && err.message) ? err.message : '请求失败'
+      }).finally(() => {
+        clearTimeout(forceTimer)
+        this.aiLoading = false
+      })
+    },
+    // 复制AI输出
+    copyAiOutput() {
+      if (!this.aiOutput) return
+      const ta = document.createElement('textarea')
+      ta.value = this.aiOutput
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      this.$message.success('已复制到剪贴板')
+    },
+    // 一键测试AI
+    handleAiQuickTest() {
+      try {
+        // 明确显示发送中状态
+        this.$message.info('正在测试AI，请稍候...')
+        aiChat({
+          model: 'qwen2.5:0.5b',
+          messages: [
+            { role: 'system', content: '你是一个智能助手。请务必使用中文回复所有问题。' },
+            { role: 'user', content: '请用一句话回复：AI服务是否正常可用？' }
+          ]
+        }).then(res => {
+          const text = (res && res.data) ? res.data : '无返回内容'
+          this.aiTestResult = text
+          if (this.$alert) {
+            this.$alert(text, 'AI测试结果', { confirmButtonText: '确定' })
+          } else {
+            this.$message({ type: 'success', message: text, duration: 6000 })
+          }
+        }).catch(err => {
+          const msg = (err && err.message) ? err.message : '请求失败'
+          this.aiTestError = msg
+          if (this.$alert) {
+            this.$alert(msg, 'AI测试失败', { type: 'error', confirmButtonText: '确定' })
+          } else {
+            this.$message.error(msg)
+          }
+        })
+      } catch (e) {
+        const msg = e && e.message ? e.message : '触发失败'
+        this.aiTestError = msg
+        this.$message.error(msg)
+      }
+    }
 }
 </script>
 

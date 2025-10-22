@@ -34,11 +34,17 @@ public class Inventory implements Serializable {
     
     private String supplier;
     
-    private LocalDate purchaseDate;
-    
     private BigDecimal purchasePrice;
     
+    private BigDecimal unitPrice;
+    
+    private LocalDate purchaseDate;
+    
+    private LocalDate productionDate;
+    
     private String status;  // NORMAL, LOW, EXPIRING, EXPIRED
+    
+    private String remark;
     
     private LocalDateTime createTime;
     

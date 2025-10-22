@@ -14,6 +14,7 @@
     <description>父项目 - 管理前后端模块</description>
 
     <modules>
+        <!-- 若 backend 在子文件夹 sub 中，则声明为 -->
         <module>backend</module>
     </modules>
 

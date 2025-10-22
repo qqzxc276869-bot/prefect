@@ -30,13 +30,13 @@
               <span>申请审批</span>
             </el-menu-item>
             <el-menu-item index="stockOut">
-              <i class="el-icon-bottom"></i>
-              <span>出库管理</span>
-            </el-menu-item>
-            <el-menu-item index="warning">
-              <i class="el-icon-warning"></i>
-              <span>库存预警</span>
-            </el-menu-item>
+            <i class="el-icon-sold-out"></i>
+            <span>出库管理</span>
+          </el-menu-item>
+          <el-menu-item index="warning">
+            <i class="el-icon-warning"></i>
+            <span>库存预警</span>
+          </el-menu-item>
             <el-menu-item index="records">
               <i class="el-icon-tickets"></i>
               <span>出入库记录</span>
@@ -89,7 +89,10 @@
           <!-- 入库登记 -->
           <div v-show="activeMenu === 'stockIn'">
             <el-card>
-              <div slot="header">入库登记</div>
+              <div slot="header">
+                入库登记
+                <el-button size="mini" style="float:right;" @click="handleStockInHint">AI智能填充</el-button>
+              </div>
               <el-form :model="stockInForm" ref="stockInForm" label-width="120px">
                 <el-form-item label="试剂" required>
                   <el-select v-model="stockInForm.reagentId" placeholder="请选择试剂" style="width: 100%;">
@@ -148,8 +151,9 @@
                 <el-table-column prop="applicantName" label="申请人" width="100"></el-table-column>
                 <el-table-column prop="purpose" label="用途" min-width="200" show-overflow-tooltip></el-table-column>
                 <el-table-column prop="createTime" label="申请时间" width="180"></el-table-column>
-                <el-table-column label="操作" width="200">
+                <el-table-column label="操作" width="320">
                   <template slot-scope="scope">
+                    <el-button size="mini" @click="handlePrecheck(scope.row)">AI预审</el-button>
                     <el-button size="mini" type="success" @click="handleReview(scope.row, 'APPROVED')">通过</el-button>
                     <el-button size="mini" type="danger" @click="handleReview(scope.row, 'REJECTED')">拒绝</el-button>
                   </template>
@@ -281,6 +285,7 @@ import { getInventoryList, getWarningList, updateThreshold } from '@/api/invento
 import { getPendingApplications, getAllApplications, reviewApplication } from '@/api/application'
 import { stockIn, stockOut, getStockInList, getStockOutList } from '@/api/stock'
 import { getReagentList } from '@/api/reagent'
+import { stockInHint, approvePrecheck } from '@/api/ai'
 import { getLocationList } from '@/api/base'
 
 export default {
@@ -389,6 +394,71 @@ export default {
         this.loadInventory()
       })
     },
+    handleStockInHint() {
+      const reagent = this.reagentList.find(x => x.id === this.stockInForm.reagentId)
+      const name = reagent ? reagent.name : ''
+      const unit = reagent ? (reagent.unit || '') : ''
+      stockInHint({ name, batchNo: this.stockInForm.batchNo, quantity: this.stockInForm.quantity, unit, model: 'qwen2.5:0.5b' })
+        .then(res => {
+          const d = res.data || {}
+          const tips = []
+          if (d.casNo) tips.push('CAS号：' + d.casNo)
+          if (d.specification) tips.push('建议规格：' + d.specification)
+          if (d.dangerLevel) tips.push('危险等级：' + d.dangerLevel)
+          if (d.defaultExpiryMonths) tips.push('建议有效期（月）：' + d.defaultExpiryMonths)
+          if (d.recommendedLocation) tips.push('位置建议：' + d.recommendedLocation)
+          if (d.batchUnique === false) tips.push('⚠️ 警告：批次号已存在，建议更换')
+          if (d.reasoning) tips.push('\n推理：' + d.reasoning)
+          
+          // 使用$confirm代替$alert，提供更明确的应用/取消选项
+          this.$confirm(tips.join('\n') || 'AI暂无建议', 'AI入库提示', {
+            confirmButtonText: '应用建议',
+            cancelButtonText: '取消',
+            type: 'info',
+            distinguishCancelAndClose: true
+          }).then(() => {
+            // 点击"应用建议"
+            let applied = []
+            
+            // 应用有效期
+            if (!this.stockInForm.expiryDate && d.defaultExpiryMonths) {
+              const date = new Date()
+              date.setMonth(date.getMonth() + Number(d.defaultExpiryMonths))
+              const y = date.getFullYear()
+              const m = String(date.getMonth() + 1).padStart(2, '0')
+              const da = String(date.getDate()).padStart(2, '0')
+              this.stockInForm.expiryDate = `${y}-${m}-${da}`
+              applied.push('有效期')
+            }
+            
+            // 应用备注（追加推理信息）
+            if (d.reasoning && !this.stockInForm.remark) {
+              this.stockInForm.remark = 'AI建议：' + d.reasoning
+              applied.push('备注')
+            }
+            
+            // 批次警告
+            if (d.batchUnique === false) {
+              this.$message.warning('⚠️ 当前批次号已存在，请更换批次号')
+            }
+            
+            // 显示应用结果
+            if (applied.length > 0) {
+              this.$message.success('已应用：' + applied.join('、'))
+            } else {
+              this.$message.info('暂无可应用的建议（相关字段已填写）')
+            }
+          }).catch(action => {
+            // 点击"取消"或关闭
+            if (action === 'cancel') {
+              this.$message.info('已取消应用建议')
+            }
+          })
+        })
+        .catch(err => {
+          this.$message.error('AI入库提示失败：' + (err.message || ''))
+        })
+    },
     resetStockInForm() {
       this.stockInForm = {
         reagentId: null,
@@ -439,6 +509,20 @@ export default {
           this.$message.success('审批成功')
           this.loadPendingApplications()
         })
+      })
+    },
+    handlePrecheck(row) {
+      approvePrecheck({ applicationId: row.id, model: 'qwen2.5:0.5b' }).then(res => {
+        const d = res.data || {}
+        const tips = []
+        tips.push('库存是否充足：' + (d.stockEnough ? '是' : '否'))
+        if (d.fifoSuggestion) tips.push('FIFO建议：' + d.fifoSuggestion)
+        if (d.substitutes && d.substitutes.length) tips.push('替代建议：' + d.substitutes.join('；'))
+        if (d.cautions && d.cautions.length) tips.push('注意事项：' + d.cautions.join('；'))
+        if (d.summary) tips.push('摘要：' + d.summary)
+        this.$alert(tips.join('\n'), 'AI预审结果', { confirmButtonText: '确定' })
+      }).catch(err => {
+        this.$message.error('AI预审失败：' + (err.message || ''))
       })
     },
     showThresholdDialog(row) {

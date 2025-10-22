@@ -30,6 +30,8 @@ public class Reagent implements Serializable {
     
     private String manufacturer;
     
+    private Integer supplierLeadTime; // 供应商到货周期(天)
+    
     private String dangerLevel;
     
     private String description;

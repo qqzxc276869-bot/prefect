@@ -2,10 +2,10 @@ import axios from 'axios'
 import { Message } from 'element-ui'
 import router from '@/router'
 
-// 创建axios实例
+// 创建axios实例（统一通过 /api 代理转发到后端 /backend）
 const service = axios.create({
   baseURL: '/api',
-  timeout: 10000
+  timeout: 60000  // 60秒超时，支持各种大小的AI模型
 })
 
 // 请求拦截器

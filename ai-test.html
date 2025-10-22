@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI功能测试</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background-color: #f5f7fa;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        }
+        .title {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #303133;
+        }
+        .test-section {
+            margin-bottom: 30px;
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #409EFF;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <h1 class="title">实验室试剂管理系统 - AI功能测试</h1>
+            
+            <div class="test-section">
+                <h3>1. AI状态检查</h3>
+                <el-button type="primary" @click="checkAIStatus" :loading="statusLoading">检查AI状态</el-button>
+                <div v-if="aiStatus" class="result-box">
+                    <pre>{{ aiStatus }}</pre>
+                </div>
+            </div>
+            
+            <div class="test-section">
+                <h3>2. 简单对话测试</h3>
+                <el-input
+                    v-model="testMessage"
+                    placeholder="输入测试消息"
+                    style="margin-bottom: 10px;"
+                ></el-input>
+                <el-button type="success" @click="testChat" :loading="chatLoading">发送消息</el-button>
+                <div v-if="chatResult" class="result-box">
+                    <pre>{{ chatResult }}</pre>
+                </div>
+            </div>
+            
+            <div class="test-section">
+                <h3>3. 库存建议测试</h3>
+                <el-form :inline="true" :model="inventoryForm" size="small">
+                    <el-form-item label="试剂名称">
+                        <el-input v-model="inventoryForm.reagentName" placeholder="例如：盐酸"></el-input>
+                    </el-form-item>
+                    <el-form-item label="当前库存">
+                        <el-input-number v-model="inventoryForm.currentStock" :min="0"></el-input-number>
+                    </el-form-item>
+                    <el-form-item label="单位">
+                        <el-select v-model="inventoryForm.unit">
+                            <el-option label="瓶" value="瓶"></el-option>
+                            <el-option label="升" value="升"></el-option>
+                            <el-option label="毫升" value="毫升"></el-option>
+                        </el-select>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="warning" @click="testInventoryAdvice" :loading="inventoryLoading">获取建议</el-button>
+                    </el-form-item>
+                </el-form>
+                <div v-if="inventoryResult" class="result-box">
+                    <pre>{{ inventoryResult }}</pre>
+                </div>
+            </div>
+            
+            <div class="test-section">
+                <h3>4. 安全建议测试</h3>
+                <el-form :inline="true" :model="safetyForm" size="small">
+                    <el-form-item label="化学品名称">
+                        <el-input v-model="safetyForm.chemicalName" placeholder="例如：硫酸"></el-input>
+                    </el-form-item>
+                    <el-form-item label="处理场景">
+                        <el-input v-model="safetyForm.scenario" placeholder="例如：稀释浓硫酸"></el-input>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="danger" @click="testSafetyAdvice" :loading="safetyLoading">获取建议</el-button>
+                    </el-form-item>
+                </el-form>
+                <div v-if="safetyResult" class="result-box">
+                    <pre>{{ safetyResult }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    statusLoading: false,
+                    chatLoading: false,
+                    inventoryLoading: false,
+                    safetyLoading: false,
+                    aiStatus: null,
+                    testMessage: '你好，请介绍一下实验室试剂管理的基本原则',
+                    chatResult: null,
+                    inventoryForm: {
+                        reagentName: '盐酸',
+                        currentStock: 5,
+                        unit: '瓶'
+                    },
+                    inventoryResult: null,
+                    safetyForm: {
+                        chemicalName: '硫酸',
+                        scenario: '稀释浓硫酸用于实验'
+                    },
+                    safetyResult: null
+                }
+            },
+            methods: {
+                async checkAIStatus() {
+                    this.statusLoading = true;
+                    try {
+                        const response = await axios.get('/api/ai/status');
+                        this.aiStatus = JSON.stringify(response.data, null, 2);
+                        this.$message.success('AI状态检查成功');
+                    } catch (error) {
+                        this.aiStatus = '错误: ' + error.message;
+                        this.$message.error('AI状态检查失败');
+                    } finally {
+                        this.statusLoading = false;
+                    }
+                },
+                
+                async testChat() {
+                    this.chatLoading = true;
+                    try {
+                        const response = await axios.post('/api/ai/chat', {
+                            model: 'qwen2.5:0.5b',
+                            messages: [
+                                { role: 'user', content: this.testMessage }
+                            ]
+                        });
+                        this.chatResult = response.data.data;
+                        this.$message.success('对话测试成功');
+                    } catch (error) {
+                        this.chatResult = '错误: ' + (error.response ? error.response.data.message : error.message);
+                        this.$message.error('对话测试失败');
+                    } finally {
+                        this.chatLoading = false;
+                    }
+                },
+                
+                async testInventoryAdvice() {
+                    this.inventoryLoading = true;
+                    try {
+                        const response = await axios.post('/api/ai/inventory-advice', null, {
+                            params: this.inventoryForm
+                        });
+                        this.inventoryResult = response.data.data;
+                        this.$message.success('库存建议获取成功');
+                    } catch (error) {
+                        this.inventoryResult = '错误: ' + (error.response ? error.response.data.message : error.message);
+                        this.$message.error('库存建议获取失败');
+                    } finally {
+                        this.inventoryLoading = false;
+                    }
+                },
+                
+                async testSafetyAdvice() {
+                    this.safetyLoading = true;
+                    try {
+                        const response = await axios.post('/api/ai/safety-advice', null, {
+                            params: this.safetyForm
+                        });
+                        this.safetyResult = response.data.data;
+                        this.$message.success('安全建议获取成功');
+                    } catch (error) {
+                        this.safetyResult = '错误: ' + (error.response ? error.response.data.message : error.message);
+                        this.$message.error('安全建议获取失败');
+                    } finally {
+                        this.safetyLoading = false;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

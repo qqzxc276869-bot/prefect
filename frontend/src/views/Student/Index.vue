@@ -39,6 +39,7 @@
             <el-card>
               <div slot="header">
                 <span>库存查询</span>
+                <el-button size="mini" type="primary" style="float: right; margin-left: 10px;" @click="handleSemanticSearch">AI智能搜</el-button>
                 <el-input
                   v-model="searchName"
                   placeholder="输入试剂名称搜索"
@@ -77,7 +78,10 @@
           <!-- 试剂申领 -->
           <div v-show="activeMenu === 'apply'">
             <el-card>
-              <div slot="header">试剂申领</div>
+              <div slot="header">
+                试剂申领
+                <el-button size="mini" style="float: right;" @click="handleApplyOptimize">AI优化</el-button>
+              </div>
               <el-form :model="applyForm" :rules="applyRules" ref="applyForm" label-width="100px">
                 <el-form-item label="试剂名称" prop="reagentId">
                   <el-select v-model="applyForm.reagentId" placeholder="请选择试剂" style="width: 100%;">
@@ -134,6 +138,7 @@
 <script>
 import { getInventoryList } from '@/api/inventory'
 import { submitApplication, getMyApplications } from '@/api/application'
+import { semanticSearch, optimizeApplyForm } from '@/api/ai'
 
 export default {
   name: 'StudentIndex',
@@ -173,6 +178,24 @@ export default {
         this.inventoryList = res.data
       })
     },
+    handleSemanticSearch() {
+      if (!this.searchName) {
+        this.$message.warning('请输入要搜索的关键词')
+        return
+      }
+      semanticSearch({ query: this.searchName, topK: 8, model: 'qwen2.5:0.5b' }).then(res => {
+        const items = res.data || []
+        if (!items.length) {
+          this.$message.info('未找到更好的智能建议，已使用常规搜索')
+          this.loadInventory()
+          return
+        }
+        const names = items.map(i => `${i.name}${i.casNo ? '（' + i.casNo + '）' : ''}${i.reason ? ' - ' + i.reason : ''}`)
+        this.$alert(names.join('\n'), 'AI智能推荐', { confirmButtonText: '确定' })
+      }).catch(err => {
+        this.$message.error('AI智能搜索失败：' + (err.message || ''))
+      })
+    },
     showApplyDialog(row) {
       this.activeMenu = 'apply'
       this.applyForm.reagentId = row.reagentId
@@ -185,6 +208,36 @@ export default {
             this.resetApplyForm()
           })
         }
+      })
+    },
+    handleApplyOptimize() {
+      const selected = this.inventoryList.find(x => x.reagentId === this.applyForm.reagentId)
+      const name = selected ? selected.reagentName : ''
+      const unit = selected ? (selected.unit || '') : ''
+      optimizeApplyForm({
+        name,
+        casNo: '',
+        quantity: this.applyForm.quantity,
+        unit,
+        purpose: this.applyForm.purpose,
+        model: 'qwen2.5:0.5b'
+      }).then(res => {
+        const data = res.data || {}
+        const tips = []
+        if (data.standardizedName) tips.push('标准名称：' + data.standardizedName)
+        if (data.casNo) tips.push('CAS号：' + data.casNo)
+        if (data.suggestedQuantity) tips.push('建议用量：' + data.suggestedQuantity + (data.unit || ''))
+        if (data.purposeTemplates && data.purposeTemplates.length) tips.push('用途模板：' + data.purposeTemplates.join('；'))
+        if (data.warnings && data.warnings.length) tips.push('提示：' + data.warnings.join('；'))
+        if (!tips.length) tips.push('AI暂无更优建议')
+        this.$alert(tips.join('\n'), 'AI申领优化', { confirmButtonText: '应用建议', callback: () => {
+          if (data.suggestedQuantity) this.applyForm.quantity = data.suggestedQuantity
+          if (data.purposeTemplates && data.purposeTemplates.length && !this.applyForm.purpose) {
+            this.applyForm.purpose = data.purposeTemplates[0]
+          }
+        }})
+      }).catch(err => {
+        this.$message.error('AI申领优化失败：' + (err.message || ''))
       })
     },
     resetApplyForm() {

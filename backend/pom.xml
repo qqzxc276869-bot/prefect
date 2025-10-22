@@ -9,7 +9,7 @@
         <groupId>com.lab</groupId>
         <artifactId>reagent-management-parent</artifactId>
         <version>1.0.0</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../test1/pom.xml</relativePath>
     </parent>
 
     <artifactId>reagent-management</artifactId>
@@ -75,6 +75,13 @@
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>5.8.16</version>
+        </dependency>
+
+        <!-- FastJSON -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>2.0.43</version>
         </dependency>
 
         <!-- Spring Boot Validation -->

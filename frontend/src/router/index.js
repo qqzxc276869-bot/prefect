@@ -31,6 +31,12 @@ const routes = [
     name: 'Admin',
     component: () => import('@/views/Admin/Index.vue'),
     meta: { requireAuth: true, role: 'ADMIN' }
+  },
+  {
+    path: '/ai-demo',
+    name: 'AIDemo',
+    component: () => import('@/views/AiDemo.vue'),
+    meta: { requireAuth: true }
   }
 ]
 

@@ -34,6 +34,8 @@ public class InventoryService extends ServiceImpl<InventoryMapper, Inventory> {
         return inventoryMapper.selectWarningList();
     }
     
+
+    
     /**
      * 更新库存状态
      */

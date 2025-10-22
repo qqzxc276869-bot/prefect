@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "实验室化学试剂与耗材库存管理系统-前端",
   "scripts": {
-    "serve": "vue-cli-service serve",
+    "serve": "vue-cli-service serve --port 8082",
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint"
   },
@@ -12,6 +12,7 @@
     "core-js": "^3.8.3",
     "echarts": "^4.9.0",
     "element-ui": "^2.15.13",
+    "qrcode": "^1.5.3",
     "vue": "^2.6.14",
     "vue-router": "^3.5.1",
     "vuex": "^3.6.2"
