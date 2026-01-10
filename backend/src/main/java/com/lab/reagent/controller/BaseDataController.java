@@ -6,6 +6,7 @@ import com.lab.reagent.entity.ReagentCategory;
 import com.lab.reagent.entity.StorageLocation;
 import com.lab.reagent.mapper.ReagentCategoryMapper;
 import com.lab.reagent.mapper.StorageLocationMapper;
+import com.lab.reagent.service.InventoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +24,9 @@ public class BaseDataController {
     
     @Autowired
     private StorageLocationMapper locationMapper;
+    
+    @Autowired
+    private InventoryService inventoryService;
     
     /**
      * 查询分类列表
@@ -97,6 +101,19 @@ public class BaseDataController {
         try {
             locationMapper.deleteById(id);
             return Result.success("删除成功");
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取位置统计信息（用于库位可视化）
+     */
+    @GetMapping("/location/statistics")
+    public Result<List<com.lab.reagent.vo.LocationStatisticsVO>> locationStatistics() {
+        try {
+            List<com.lab.reagent.vo.LocationStatisticsVO> statistics = inventoryService.getLocationStatistics();
+            return Result.success(statistics);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }

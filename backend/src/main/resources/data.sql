@@ -4,8 +4,6 @@
 
 -- 清空现有数据（避免重复插入错误）
 SET FOREIGN_KEY_CHECKS = 0;
-TRUNCATE TABLE budget_transaction;
-TRUNCATE TABLE experiment_pattern;
 TRUNCATE TABLE experiment_activity;
 TRUNCATE TABLE consumption_pattern;
 TRUNCATE TABLE scan_operation_log;
@@ -13,16 +11,8 @@ TRUNCATE TABLE storage_warning_log;
 TRUNCATE TABLE storage_location_coordinate;
 TRUNCATE TABLE storage_location_map;
 TRUNCATE TABLE storage_location_attributes;
-TRUNCATE TABLE storage_incompatibility_rules;
 TRUNCATE TABLE reagent_lifecycle;
-TRUNCATE TABLE waste_disposal_record;
-TRUNCATE TABLE waste_category;
-TRUNCATE TABLE sop_training_record;
-TRUNCATE TABLE sop_document;
-TRUNCATE TABLE ghs_msds;
-TRUNCATE TABLE procurement_request;
-TRUNCATE TABLE research_group_member;
-TRUNCATE TABLE research_group;
+TRUNCATE TABLE announcement;
 TRUNCATE TABLE stock_out_record;
 TRUNCATE TABLE stock_in_record;
 TRUNCATE TABLE application;
@@ -115,25 +105,6 @@ INSERT INTO inventory (reagent_id, location_id, batch_no, quantity, warning_thre
 (15, 2, 'IOD20240701', 1.50, 0.50, '2026-12-31', '上海试剂三厂', 300.00, 200.00, '2024-07-01', '2024-06-05', 'LOW', '易升华，密封保存', NOW());
 
 -- =============================================
--- 6. 课题组数据
--- =============================================
-INSERT INTO research_group (group_name, group_code, pi_id, pi_name, department, total_budget, used_budget, available_budget, budget_year, status, description, create_time) VALUES
-('有机化学合成课题组', 'ORG-2024-001', 2, '张教授', '化学系', 500000.00, 125000.00, 375000.00, 2024, 'ACTIVE', '主要研究有机化合物的合成与应用', NOW()),
-('分析化学课题组', 'ANA-2024-002', 2, '张教授', '化学系', 300000.00, 80000.00, 220000.00, 2024, 'ACTIVE', '专注于分析方法开发', NOW()),
-('生物化学课题组', 'BIO-2024-003', 3, '李老师', '生物系', 400000.00, 150000.00, 250000.00, 2024, 'ACTIVE', '研究生物大分子相互作用', NOW());
-
--- =============================================
--- 7. 课题组成员数据
--- =============================================
-INSERT INTO research_group_member (group_id, user_id, user_name, member_role, join_date, status, create_time) VALUES
-(1, 2, '张教授', 'PI', '2024-01-01', 'ACTIVE', NOW()),
-(1, 4, '王小明', '研究生', '2024-03-01', 'ACTIVE', NOW()),
-(1, 5, '刘小红', '研究生', '2024-03-01', 'ACTIVE', NOW()),
-(2, 2, '张教授', 'PI', '2024-01-01', 'ACTIVE', NOW()),
-(3, 3, '李老师', 'PI', '2024-01-01', 'ACTIVE', NOW()),
-(3, 6, '陈小华', '研究生', '2024-03-01', 'ACTIVE', NOW());
-
--- =============================================
 -- 8. 领用申请数据
 -- =============================================
 INSERT INTO application (application_no, reagent_id, reagent_name, quantity, purpose, applicant_id, applicant_name, status, reviewer_id, reviewer_name, review_time, review_remark, create_time) VALUES
@@ -164,56 +135,12 @@ INSERT INTO stock_out_record (reagent_id, inventory_id, application_id, quantity
 (7, 7, NULL, 2.00, 6, '陈小华', 1, '系统管理员', '配制缓冲液', '临时领用', '2024-06-06 14:20:00');
 
 -- =============================================
--- 11. 采购申请数据
+-- 11. 系统公告数据
 -- =============================================
-INSERT INTO procurement_request (request_no, reagent_id, reagent_name, quantity, unit, estimated_price, supplier, requester_id, requester_name, group_id, urgency, reason, status, approver_id, approver_name, approval_time, approval_remark, create_time) VALUES
-('PRO20240501001', 1, '乙醇', 20.00, '瓶', 600.00, '国药集团', 4, '王小明', 1, 'NORMAL', '实验室常用溶剂即将用完', 'RECEIVED', 2, '张教授', '2024-05-02 09:00:00', '同意采购', '2024-05-01 14:00:00'),
-('PRO20240515001', 11, '硝酸银', 5.00, '瓶', 1000.00, '上海试剂三厂', 5, '刘小红', 1, 'HIGH', '课题实验急需', 'APPROVED', 2, '张教授', '2024-05-16 10:00:00', '同意，尽快订购', '2024-05-15 16:00:00'),
-('PRO20240601001', 9, '葡萄糖', 10.00, '瓶', 150.00, '国药集团', 6, '陈小华', 3, 'NORMAL', '生物实验补充试剂', 'PENDING', NULL, NULL, NULL, NULL, '2024-06-01 10:00:00');
-
--- =============================================
--- 12. GHS/MSDS信息数据
--- =============================================
-INSERT INTO ghs_msds (reagent_id, cas_no, reagent_name, ghs_classification, signal_word, hazard_statements, precautionary_statements, first_aid, fire_fighting, spill_handling, storage_conditions, disposal_methods, create_time) VALUES
-(1, '64-17-5', '乙醇', '易燃液体类别2', '危险', 'H225:高度易燃液体和蒸气', 'P210:远离热源、火花、明火、热表面。禁止吸烟；P233:保持容器密闭；P240:容器和接收设备接地/等电位连接', '吸入：迅速脱离现场至空气新鲜处。保持呼吸道通畅。如呼吸困难，给输氧。如呼吸停止，立即进行人工呼吸。就医。', '用雾状水、泡沫、干粉、二氧化碳灭火。', '迅速撤离泄漏污染区人员至安全区，并进行隔离，严格限制出入。切断火源。建议应急处理人员戴自给正压式呼吸器，穿防静电工作服。', '储存于阴凉、通风的库房。远离火种、热源。库温不宜超过30℃。保持容器密封。应与氧化剂、酸类、碱金属、胺类等分开存放。', '建议用焚烧法处置。', NOW()),
-(2, '67-56-1', '甲醇', '易燃液体类别2；急性毒性类别3（经口、经皮、吸入）', '危险', 'H225:高度易燃液体和蒸气；H301:吞咽会中毒；H311:皮肤接触会中毒；H331:吸入会中毒', 'P210:远离热源、火花、明火、热表面。禁止吸烟；P280:戴防护手套/穿防护服/戴防护眼镜/戴防护面具', '皮肤接触：脱去污染的衣着，用肥皂水和清水彻底冲洗皮肤。眼睛接触：提起眼睑，用流动清水或生理盐水冲洗。就医。吸入：迅速脱离现场至空气新鲜处。', '用雾状水、抗溶性泡沫、干粉、二氧化碳灭火。', '迅速撤离泄漏污染区人员至安全区，并进行隔离，严格限制出入。切断火源。', '储存于阴凉、通风的库房。远离火种、热源。库温不宜超过37℃。保持容器密封。应与氧化剂、酸类、碱金属等分开存放。', '建议用焚烧法处置。焚烧炉排出的气体要通过洗涤器除去。', NOW()),
-(4, '7647-01-0', '盐酸', '金属腐蚀物类别1；皮肤腐蚀/刺激类别1B', '危险', 'H290:可能腐蚀金属；H314:造成严重皮肤灼伤和眼损伤', 'P280:戴防护手套/穿防护服/戴防护眼镜/戴防护面具；P303+P361+P353:如皮肤（或头发）沾染：立即脱掉/脱去所有沾染的衣服。用水清洗皮肤/淋浴', '皮肤接触：立即脱去污染的衣着，用大量流动清水冲洗至少15分钟。就医。眼睛接触：立即提起眼睑，用大量流动清水或生理盐水彻底冲洗至少15分钟。就医。', '用碱性物质如碳酸氢钠、碳酸钠、消石灰等中和。也可用大量水扑救。', '迅速撤离泄漏污染区人员至安全区，并进行隔离，严格限制出入。建议应急处理人员戴自给正压式呼吸器，穿防酸碱工作服。', '储存于阴凉、通风的库房。库温不超过30℃，相对湿度不超过85％。保持容器密封。应与碱类、胺类、碱金属、易（可）燃物分开存放。', '用碱液中和后，用大量水冲洗，经稀释的污水放入废水系统。', NOW()),
-(5, '7664-93-9', '硫酸', '金属腐蚀物类别1；皮肤腐蚀/刺激类别1A', '危险', 'H290:可能腐蚀金属；H314:造成严重皮肤灼伤和眼损伤', 'P280:戴防护手套/穿防护服/戴防护眼镜/戴防护面具；P301+P330+P331:如误吞咽：漱口。不要诱导呕吐', '皮肤接触：立即脱去污染的衣着，用大量流动清水冲洗至少15分钟。就医。眼睛接触：立即提起眼睑，用大量流动清水或生理盐水彻底冲洗至少15分钟。就医。', '消防人员必须穿全身耐酸碱消防服。灭火剂：干粉、二氧化碳、砂土。避免水流冲击物品，以免遇水会放出大量热量发生喷溅而灼伤皮肤。', '迅速撤离泄漏污染区人员至安全区，并进行隔离，严格限制出入。建议应急处理人员戴自给正压式呼吸器，穿防酸碱工作服。', '储存于阴凉、通风的库房。库温不超过35℃，相对湿度不超过85％。保持容器密封。应与易（可）燃物、碱类、金属粉末等分开存放。', '用碱液中和后，用大量水冲洗，经稀释的污水放入废水系统。', NOW());
-
--- =============================================
--- 13. SOP文档数据
--- =============================================
-INSERT INTO sop_document (title, sop_no, category, content, version, status, author_id, author_name, reviewer_id, reviewer_name, publish_time, create_time) VALUES
-('实验室安全操作规程', 'SOP-2024-001', '安全管理', '1. 目的：规范实验室安全操作，确保人员和设备安全。\n2. 范围：适用于所有实验室工作人员。\n3. 内容：\n3.1 进入实验室必须穿戴实验服、护目镜等个人防护装备。\n3.2 使用危险化学品前必须了解其安全特性。\n3.3 实验过程中严禁饮食、吸烟。\n3.4 实验结束后必须清理实验台面，关闭水电气源。', 'V1.0', 'PUBLISHED', 1, '系统管理员', 2, '张教授', '2024-01-15 10:00:00', '2024-01-10 14:00:00'),
-('试剂入库操作规程', 'SOP-2024-002', '库存管理', '1. 目的：规范试剂入库流程，确保库存准确。\n2. 范围：适用于所有试剂入库操作。\n3. 内容：\n3.1 验收试剂包装完整性，核对品名、规格、数量。\n3.2 检查生产日期、有效期，拒收过期或临期试剂。\n3.3 在系统中录入试剂信息，打印标签并粘贴。\n3.4 按照分类和存储要求放置到指定位置。', 'V1.0', 'PUBLISHED', 1, '系统管理员', 2, '张教授', '2024-01-20 11:00:00', '2024-01-15 09:00:00'),
-('危险化学品应急处理规程', 'SOP-2024-003', '应急管理', '1. 目的：规范危险化学品事故应急处理，减少损失。\n2. 范围：适用于所有危险化学品泄漏、火灾等事故。\n3. 内容：\n3.1 发现事故立即报警并通知相关人员。\n3.2 疏散无关人员，隔离事故区域。\n3.3 根据化学品特性选择合适的应急处理方法。\n3.4 事故处理后进行总结和记录。', 'V1.0', 'PUBLISHED', 1, '系统管理员', 2, '张教授', '2024-02-01 10:00:00', '2024-01-25 15:00:00');
-
--- =============================================
--- 14. SOP培训记录数据
--- =============================================
-INSERT INTO sop_training_record (sop_id, user_id, user_name, training_date, trainer_id, trainer_name, score, status, remark, create_time) VALUES
-(1, 4, '王小明', '2024-03-01', 2, '张教授', 92.00, 'PASSED', '认真学习，掌握良好', NOW()),
-(1, 5, '刘小红', '2024-03-01', 2, '张教授', 88.00, 'PASSED', '基本掌握', NOW()),
-(1, 6, '陈小华', '2024-03-01', 3, '李老师', 95.00, 'PASSED', '优秀', NOW()),
-(2, 4, '王小明', '2024-03-15', 2, '张教授', 90.00, 'PASSED', '', NOW()),
-(2, 5, '刘小红', '2024-03-15', 2, '张教授', 85.00, 'PASSED', '', NOW());
-
--- =============================================
--- 15. 废弃物分类数据
--- =============================================
-INSERT INTO waste_category (name, code, description, disposal_method, create_time) VALUES
-('有机废液', 'WASTE-ORG-LIQUID', '各类有机溶剂废液', '收集后统一交由有资质的危废处置单位处理', NOW()),
-('无机废液', 'WASTE-INORG-LIQUID', '无机酸碱盐废液', '中和后达标排放或交由危废处置单位处理', NOW()),
-('固体废物', 'WASTE-SOLID', '实验产生的固体废弃物', '分类收集后交由危废处置单位处理', NOW()),
-('重金属废物', 'WASTE-HEAVY-METAL', '含重金属的废液或固体', '收集后交由危废处置单位特殊处理', NOW());
-
--- =============================================
--- 16. 废弃物处置记录数据
--- =============================================
-INSERT INTO waste_disposal_record (record_no, waste_category_id, waste_name, quantity, unit, source_location, disposal_method, disposal_date, handler_id, handler_name, status, remark, create_time) VALUES
-('WDR20240401001', 1, '乙醇废液', 5.00, 'L', '化学实验室A', '交由危废处置单位处理', '2024-04-15', 1, '系统管理员', 'COMPLETED', '已按规定处理', '2024-04-01 10:00:00'),
-('WDR20240501001', 2, '酸性废液', 10.00, 'L', '化学实验室A', '中和后达标排放', '2024-05-10', 1, '系统管理员', 'COMPLETED', 'pH中和至7，检测达标', '2024-05-01 14:00:00'),
-('WDR20240601001', 3, '实验固废', 2.00, 'kg', '化学实验室B', '交由危废处置单位处理', NULL, 1, '系统管理员', 'PENDING', '待处理', '2024-06-01 09:00:00');
+INSERT INTO announcement (title, content, audience, priority, creator_id, creator_name, publish_time, create_time) VALUES
+('危险化学品库存盘点提醒', '请各实验室负责人于本周五（6月7日）前完成危险化学品库存盘点，并在系统中更新结果。盘点过程中务必遵守安全操作规范。', 'ALL', 'WARN', 1, '系统管理员', '2024-06-03 09:00:00', '2024-06-03 09:00:00'),
+('试剂申领审批时限通知', '近期试剂申领量上升，请老师们在收到系统提醒后24小时内完成审批，如需延长审批时间，请在备注中说明原因。', 'TEACHER', 'INFO', 1, '系统管理员', '2024-06-04 10:00:00', '2024-06-04 10:00:00'),
+('安全培训报名', '7月10日将开展实验室安全培训，请所有学生在本月25日前通过系统提交报名信息，未完成培训不得参与暑期实验。', 'STUDENT', 'URGENT', 1, '系统管理员', '2024-06-05 14:00:00', '2024-06-05 14:00:00');
 
 -- =============================================
 -- 17. 试剂生命周期记录数据
@@ -228,35 +155,9 @@ INSERT INTO reagent_lifecycle (reagent_id, inventory_id, batch_no, lifecycle_sta
 (4, 4, 'HCL20240201', 'OUTBOUND', '出库', '陈小华领用0.5瓶，用途：pH调节', 1, '系统管理员', '2024-06-02 10:00:00');
 
 -- =============================================
--- 18. 存储兼容性规则数据
--- =============================================
-INSERT INTO storage_incompatibility_rules (hazard_type1, hazard_type2, incompatibility_level, description, safety_distance, enabled, create_time) VALUES
-('易燃液体', '强酸', 'HIGH', '有机溶剂与强酸反应可能引发火灾或爆炸', 2.00, 1, NOW()),
-('易燃液体', '强碱', 'HIGH', '有机溶剂与强碱反应可能引发火灾', 2.00, 1, NOW()),
-('易燃液体', '氧化剂', 'MEDIUM', '易燃液体与氧化剂接触可能发生氧化反应', 1.50, 1, NOW()),
-('强酸', '强碱', 'HIGH', '酸碱中和反应剧烈，可能产生大量热量', 1.50, 1, NOW()),
-('酸类', '金属盐', 'MEDIUM', '酸与活泼金属盐反应可能产生有毒气体', 1.00, 1, NOW());
-
--- =============================================
 -- 19. 存储位置属性数据
 -- =============================================
 INSERT INTO storage_location_attributes (location_id, is_ventilated, is_explosion_proof, temperature_control, humidity_control, max_capacity, special_requirements, create_time) VALUES
 (6, 1, 1, '15-25℃', '相对湿度<60%', 100.00, '易燃品专用柜，配备防爆设施', NOW()),
 (4, 0, 0, '室温', '相对湿度<70%', 150.00, '防腐蚀材质', NOW()),
 (10, 1, 1, '15-20℃', '相对湿度<50%', 50.00, '危险品专用库，24小时监控', NOW());
-
--- =============================================
--- 20. 预算交易记录数据
--- =============================================
-INSERT INTO budget_transaction (group_id, transaction_type, amount, description, create_time) VALUES
-(1, 'ALLOCATION', 500000.00, '2024年度预算分配', '2024-01-01 00:00:00'),
-(1, 'EXPENSE', -25000.00, '试剂采购支出', '2024-02-01 10:00:00'),
-(1, 'EXPENSE', -50000.00, '设备购置支出', '2024-03-15 14:00:00'),
-(1, 'EXPENSE', -30000.00, '试剂采购支出', '2024-04-20 11:00:00'),
-(1, 'EXPENSE', -20000.00, '耗材采购支出', '2024-05-10 15:00:00'),
-(2, 'ALLOCATION', 300000.00, '2024年度预算分配', '2024-01-01 00:00:00'),
-(2, 'EXPENSE', -40000.00, '仪器维护费用', '2024-02-15 09:00:00'),
-(2, 'EXPENSE', -40000.00, '试剂采购支出', '2024-04-01 10:00:00'),
-(3, 'ALLOCATION', 400000.00, '2024年度预算分配', '2024-01-01 00:00:00'),
-(3, 'EXPENSE', -80000.00, '生物试剂采购', '2024-03-01 14:00:00'),
-(3, 'EXPENSE', -70000.00, '实验动物购置', '2024-05-15 11:00:00');

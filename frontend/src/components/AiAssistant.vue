@@ -46,8 +46,9 @@
             v-model="currentMessage"
             type="textarea"
             :rows="3"
-            placeholder="请输入您的问题..."
-            @keyup.enter.native="sendMessage"
+            placeholder="请输入您的问题...（Enter发送，Shift+Enter换行）"
+            @keydown.native.enter.exact.prevent="sendMessage"
+            @keydown.native.enter.shift.exact="handleShiftEnter"
             :disabled="loading"
           ></el-input>
           <div class="input-actions">
@@ -131,7 +132,7 @@ export default {
         }))
         
         // 调用AI API
-        const response = await chatWithAI('qwen2.5:0.5b', messages)
+        const response = await chatWithAI('qwen-plus-2025-07-28', messages)
         
         // 添加AI回复
         this.messages.push({
@@ -184,6 +185,10 @@ export default {
       if (chatHistory) {
         chatHistory.scrollTop = chatHistory.scrollHeight
       }
+    },
+    
+    handleShiftEnter() {
+      // Shift+Enter 换行，不做任何处理，让默认行为生效
     }
   }
 }

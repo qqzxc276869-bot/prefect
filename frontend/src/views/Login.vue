@@ -28,12 +28,6 @@
           >登 录</el-button>
         </el-form-item>
       </el-form>
-      <div class="demo-account">
-        <p>演示账号：</p>
-        <p>学生账号：student / 123456</p>
-        <p>老师账号：teacher / 123456</p>
-        <p>管理员账号：admin / 123456</p>
-      </div>
     </div>
   </div>
 </template>

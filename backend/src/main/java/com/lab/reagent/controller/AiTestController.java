@@ -1,6 +1,7 @@
 package com.lab.reagent.controller;
 
 import com.lab.reagent.common.Result;
+import com.lab.reagent.config.AiProperties;
 import com.lab.reagent.service.AiService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,9 @@ public class AiTestController {
     @Autowired
     private AiService aiService;
 
+    @Autowired
+    private AiProperties aiProperties;
+
     /**
      * AI功能测试接口
      */
@@ -25,11 +29,8 @@ public class AiTestController {
         try {
             log.info("开始测试AI功能...");
             
-            // 测试简单的对话
-            Map<String, Object> body = new HashMap<>();
-            body.put("model", "qwen2.5:0.5b");
-            
-            String result = aiService.chat("qwen2.5:0.5b", null);
+            // 使用配置的默认模型进行测试
+            String result = aiService.chat(null, null);
             log.info("AI测试成功，返回结果：" + result);
             
             return Result.success("AI功能正常，测试完成");
@@ -46,10 +47,10 @@ public class AiTestController {
     public Result<Map<String, Object>> getAIStatus() {
         try {
             Map<String, Object> status = new HashMap<>();
-            status.put("enabled", true);
-            status.put("model", "qwen2.5:0.5b");
-            status.put("baseUrl", "http://localhost:11434/v1");
-            status.put("apiKeyConfigured", true);
+            status.put("enabled", aiProperties.isEnabled());
+            status.put("model", aiProperties.getModel());
+            status.put("baseUrl", aiProperties.getBaseUrl());
+            status.put("apiKeyConfigured", aiProperties.getApiKey() != null && !aiProperties.getApiKey().trim().isEmpty());
             status.put("status", "ready");
             
             return Result.success(status);

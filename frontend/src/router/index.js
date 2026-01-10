@@ -37,6 +37,12 @@ const routes = [
     name: 'AIDemo',
     component: () => import('@/views/AiDemo.vue'),
     meta: { requireAuth: true }
+  },
+  {
+    path: '/ai-assistant',
+    name: 'AiAssistant',
+    component: () => import('@/views/AiAssistant.vue'),
+    meta: { requireAuth: true }
   }
 ]
 

@@ -12,7 +12,7 @@ import java.util.List;
  * 智能预测 Controller
  */
 @RestController
-@RequestMapping("/forecasting")
+@RequestMapping("/api/forecasting")
 @CrossOrigin
 public class ForecastingController {
     
@@ -24,8 +24,16 @@ public class ForecastingController {
      */
     @PostMapping("/generate/{reagentId}")
     public Result generateForecast(@PathVariable Long reagentId) {
-        ForecastingRecord forecast = forecastingService.generateForecast(reagentId);
-        return forecast != null ? Result.success(forecast) : Result.error("无法生成预测，可能是数据不足");
+        try {
+            ForecastingRecord forecast = forecastingService.generateForecast(reagentId);
+            if (forecast != null) {
+                return Result.success(forecast);
+            } else {
+                return Result.error("无法生成预测：请确保试剂有库存且存在历史消耗记录");
+            }
+        } catch (Exception e) {
+            return Result.error("预测失败：" + e.getMessage());
+        }
     }
     
     /**

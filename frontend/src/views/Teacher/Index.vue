@@ -41,6 +41,18 @@
               <i class="el-icon-tickets"></i>
               <span>出入库记录</span>
             </el-menu-item>
+            <el-menu-item index="announcements">
+              <i class="el-icon-bell"></i>
+              <span>系统公告</span>
+            </el-menu-item>
+            <el-menu-item index="feedback">
+              <i class="el-icon-chat-line-square"></i>
+              <span>反馈处理</span>
+            </el-menu-item>
+            <el-menu-item index="ai-assistant">
+              <i class="el-icon-chat-dot-round"></i>
+              <span>AI智能助手</span>
+            </el-menu-item>
           </el-menu>
         </el-aside>
         
@@ -210,8 +222,11 @@
           
           <!-- 库存预警 -->
           <div v-show="activeMenu === 'warning'">
-            <el-card>
-              <div slot="header">库存预警</div>
+            <el-card style="margin-bottom: 20px;">
+              <div slot="header">
+                <span>库存预警</span>
+                <el-button size="small" type="primary" style="float: right;" @click="exportInventoryData">导出库存清单</el-button>
+              </div>
               <el-table :data="warningList" border>
                 <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
                 <el-table-column prop="specification" label="规格" width="120"></el-table-column>
@@ -228,12 +243,43 @@
                 </el-table-column>
               </el-table>
             </el-card>
+            
+            <el-card v-if="replenishSuggestions.length > 0">
+              <div slot="header">
+                <i class="el-icon-magic-stick"></i> AI补货建议
+              </div>
+              <el-table :data="replenishSuggestions" border>
+                <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
+                <el-table-column prop="currentStock" label="当前库存" width="100">
+                  <template slot-scope="scope">
+                    {{ scope.row.currentStock }} {{ scope.row.unit }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="avgDailyConsumption" label="日均消耗" width="100">
+                  <template slot-scope="scope">
+                    {{ scope.row.avgDailyConsumption }} {{ scope.row.unit }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100">
+                  <template slot-scope="scope">
+                    <el-tag v-if="scope.row.status === 'LOW'" type="warning">库存不足</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'EXPIRING'" type="warning">即将过期</el-tag>
+                    <el-tag v-else type="danger">已过期</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="aiSuggestion" label="AI建议" min-width="300"></el-table-column>
+              </el-table>
+            </el-card>
           </div>
           
           <!-- 出入库记录 -->
           <div v-show="activeMenu === 'records'">
             <el-card>
-              <div slot="header">出入库记录</div>
+              <div slot="header">
+                <span>出入库记录</span>
+                <el-button size="small" type="primary" style="float: right; margin-left: 10px;" @click="exportStockOutData">导出出库记录</el-button>
+                <el-button size="small" type="success" style="float: right;" @click="exportStockInData">导出入库记录</el-button>
+              </div>
               <el-tabs v-model="recordTab">
                 <el-tab-pane label="入库记录" name="in">
                   <el-table :data="stockInRecords" border>
@@ -256,6 +302,39 @@
                   </el-table>
                 </el-tab-pane>
               </el-tabs>
+            </el-card>
+          </div>
+
+          <!-- 系统公告 -->
+          <div v-show="activeMenu === 'announcements'">
+            <AnnouncementList :can-publish="false" />
+          </div>
+
+          <!-- 反馈处理 -->
+          <div v-show="activeMenu === 'feedback'">
+            <el-card>
+              <div slot="header">
+                <i class="el-icon-chat-line-square"></i> 待处理反馈
+              </div>
+              <el-table :data="feedbackList" border>
+                <el-table-column prop="feedbackType" label="类型" width="100">
+                  <template slot-scope="scope">
+                    <el-tag v-if="scope.row.feedbackType === 'REAGENT'" type="warning">试剂问题</el-tag>
+                    <el-tag v-else-if="scope.row.feedbackType === 'SYSTEM'" type="danger">系统问题</el-tag>
+                    <el-tag v-else type="info">建议</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="userName" label="提交人" width="100"></el-table-column>
+                <el-table-column prop="title" label="标题" width="150" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="content" label="内容" min-width="250" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="createTime" label="提交时间" width="180"></el-table-column>
+                <el-table-column label="操作" width="200">
+                  <template slot-scope="scope">
+                    <el-button size="mini" type="success" @click="handleFeedbackItem(scope.row, 'RESOLVED')">已解决</el-button>
+                    <el-button size="mini" type="warning" @click="handleFeedbackItem(scope.row, 'PROCESSING')">处理中</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
             </el-card>
           </div>
         </el-main>
@@ -287,9 +366,16 @@ import { stockIn, stockOut, getStockInList, getStockOutList } from '@/api/stock'
 import { getReagentList } from '@/api/reagent'
 import { stockInHint, approvePrecheck } from '@/api/ai'
 import { getLocationList } from '@/api/base'
+import { getAnnouncements } from '@/api/announcement'
+import { getPendingFeedback, handleFeedback } from '@/api/feedback'
+import { exportInventory, exportStockIn, exportStockOut, getFifoSuggestion, getReplenishSuggestions } from '@/api/export'
+import AnnouncementList from '@/components/AnnouncementList.vue'
 
 export default {
   name: 'TeacherIndex',
+  components: {
+    AnnouncementList
+  },
   data() {
     return {
       activeMenu: 'inventory',
@@ -301,9 +387,12 @@ export default {
       pendingList: [],
       approvedList: [],
       warningList: [],
+      announcementList: [],
+      feedbackList: [],
       stockInRecords: [],
       stockOutRecords: [],
       recordTab: 'in',
+      replenishSuggestions: [],
       stockInForm: {
         reagentId: null,
         batchNo: '',
@@ -335,6 +424,7 @@ export default {
     this.loadInventory()
     this.loadReagents()
     this.loadLocations()
+    this.loadAnnouncements()
   },
   methods: {
     handleMenuSelect(index) {
@@ -347,6 +437,12 @@ export default {
         this.loadStockRecords()
       } else if (index === 'stockOut') {
         this.loadApprovedApplications()
+      } else if (index === 'announcements') {
+        this.loadAnnouncements()
+      } else if (index === 'feedback') {
+        this.loadFeedback()
+      } else if (index === 'ai-assistant') {
+        this.$router.push('/ai-assistant')
       }
     },
     loadInventory() {
@@ -364,6 +460,11 @@ export default {
         this.locationList = res.data
       })
     },
+    loadAnnouncements() {
+      getAnnouncements({ role: 'TEACHER' }).then(res => {
+        this.announcementList = res.data || []
+      })
+    },
     loadPendingApplications() {
       getPendingApplications().then(res => {
         this.pendingList = res.data
@@ -377,6 +478,35 @@ export default {
     loadWarningList() {
       getWarningList().then(res => {
         this.warningList = res.data
+      })
+      // 加载AI补货建议
+      this.loadReplenishSuggestions()
+    },
+    loadReplenishSuggestions() {
+      getReplenishSuggestions({ model: 'qwen-plus-2025-07-28' }).then(res => {
+        this.replenishSuggestions = res.data || []
+      }).catch(() => {
+        this.replenishSuggestions = []
+      })
+    },
+    loadFeedback() {
+      getPendingFeedback().then(res => {
+        this.feedbackList = res.data || []
+      })
+    },
+    handleFeedbackItem(row, status) {
+      this.$prompt('请输入处理备注', '处理反馈', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入处理备注'
+      }).then(({ value }) => {
+        handleFeedback(row.id, {
+          status: status,
+          remark: value || ''
+        }).then(() => {
+          this.$message.success('处理成功')
+          this.loadFeedback()
+        })
       })
     },
     loadStockRecords() {
@@ -398,7 +528,7 @@ export default {
       const reagent = this.reagentList.find(x => x.id === this.stockInForm.reagentId)
       const name = reagent ? reagent.name : ''
       const unit = reagent ? (reagent.unit || '') : ''
-      stockInHint({ name, batchNo: this.stockInForm.batchNo, quantity: this.stockInForm.quantity, unit, model: 'qwen2.5:0.5b' })
+      stockInHint({ name, batchNo: this.stockInForm.batchNo, quantity: this.stockInForm.quantity, unit, model: 'qwen-plus-2025-07-28' })
         .then(res => {
           const d = res.data || {}
           const tips = []
@@ -478,6 +608,37 @@ export default {
       this.stockOutForm.purpose = app.purpose
     },
     submitStockOut() {
+      if (!this.stockOutForm.inventoryId) {
+        this.$message.warning('请选择库存')
+        return
+      }
+      
+      // 获取选中的库存信息
+      const selectedInventory = this.inventoryList.find(x => x.id === this.stockOutForm.inventoryId)
+      if (selectedInventory && selectedInventory.reagentId) {
+        // 获取FIFO建议
+        getFifoSuggestion(selectedInventory.reagentId).then(res => {
+          const suggestion = res.data || {}
+          if (suggestion.hasSuggestion && suggestion.inventoryId !== this.stockOutForm.inventoryId) {
+            // 显示FIFO提示
+            this.$confirm(suggestion.message + '\n\n是否继续当前出库操作？', 'FIFO提示', {
+              confirmButtonText: '继续出库',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }).then(() => {
+              this.doStockOut()
+            })
+          } else {
+            this.doStockOut()
+          }
+        }).catch(() => {
+          this.doStockOut()
+        })
+      } else {
+        this.doStockOut()
+      }
+    },
+    doStockOut() {
       stockOut(this.stockOutForm).then(() => {
         this.$message.success('出库成功')
         this.resetStockOutForm()
@@ -512,7 +673,7 @@ export default {
       })
     },
     handlePrecheck(row) {
-      approvePrecheck({ applicationId: row.id, model: 'qwen2.5:0.5b' }).then(res => {
+      approvePrecheck({ applicationId: row.id, model: 'qwen-plus-2025-07-28' }).then(res => {
         const d = res.data || {}
         const tips = []
         tips.push('库存是否充足：' + (d.stockEnough ? '是' : '否'))
@@ -533,6 +694,30 @@ export default {
       }
       this.thresholdDialogVisible = true
     },
+    getAudienceLabel(value) {
+      const map = {
+        ALL: '全部人员',
+        TEACHER: '老师',
+        STUDENT: '学生'
+      }
+      return map[value] || '全部人员'
+    },
+    getPriorityLabel(value) {
+      const map = {
+        INFO: '普通提醒',
+        WARN: '重要通知',
+        URGENT: '紧急通知'
+      }
+      return map[value] || '普通提醒'
+    },
+    getPriorityTag(value) {
+      const map = {
+        INFO: 'info',
+        WARN: 'warning',
+        URGENT: 'danger'
+      }
+      return map[value] || 'info'
+    },
     updateThreshold() {
       updateThreshold(this.thresholdForm.id, {
         warningThreshold: this.thresholdForm.warningThreshold
@@ -540,6 +725,48 @@ export default {
         this.$message.success('设置成功')
         this.thresholdDialogVisible = false
         this.loadInventory()
+      })
+    },
+    exportInventoryData() {
+      exportInventory().then(res => {
+        const blob = new Blob([res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = '库存清单.xlsx'
+        link.click()
+        window.URL.revokeObjectURL(url)
+        this.$message.success('导出成功')
+      }).catch(() => {
+        this.$message.error('导出失败')
+      })
+    },
+    exportStockInData() {
+      exportStockIn().then(res => {
+        const blob = new Blob([res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = '入库记录.xlsx'
+        link.click()
+        window.URL.revokeObjectURL(url)
+        this.$message.success('导出成功')
+      }).catch(() => {
+        this.$message.error('导出失败')
+      })
+    },
+    exportStockOutData() {
+      exportStockOut().then(res => {
+        const blob = new Blob([res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = '出库记录.xlsx'
+        link.click()
+        window.URL.revokeObjectURL(url)
+        this.$message.success('导出成功')
+      }).catch(() => {
+        this.$message.error('导出失败')
       })
     },
     handleLogout() {

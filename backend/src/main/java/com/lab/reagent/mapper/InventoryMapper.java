@@ -3,6 +3,7 @@ package com.lab.reagent.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lab.reagent.entity.Inventory;
 import com.lab.reagent.vo.InventoryVO;
+import com.lab.reagent.vo.LocationStatisticsVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -43,6 +44,19 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
             "WHERE i.status IN ('LOW', 'EXPIRING', 'EXPIRED') " +
             "ORDER BY i.status, i.update_time DESC")
     List<InventoryVO> selectWarningList();
+    
+    /**
+     * 按位置统计库存信息
+     */
+    @Select("SELECT l.id AS locationId, l.room_name AS roomName, l.cabinet_no AS cabinetNo, " +
+            "l.shelf_no AS shelfNo, l.full_location AS fullLocation, l.description, " +
+            "CAST(COUNT(DISTINCT i.reagent_id) AS SIGNED) AS reagentCount, " +
+            "COALESCE(SUM(i.quantity), 0) AS totalQuantity " +
+            "FROM storage_location l " +
+            "LEFT JOIN inventory i ON l.id = i.location_id " +
+            "GROUP BY l.id, l.room_name, l.cabinet_no, l.shelf_no, l.full_location, l.description " +
+            "ORDER BY l.room_name, l.cabinet_no, l.shelf_no")
+    List<LocationStatisticsVO> selectLocationStatistics();
     
 
 }

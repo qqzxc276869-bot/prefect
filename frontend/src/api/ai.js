@@ -45,15 +45,6 @@ export function optimizeApplyForm(params) {
   })
 }
 
-// 公告智能生成
-export function generateAnnouncement(params) {
-  return request({
-    url: '/ai/announcement/generate',
-    method: 'post',
-    data: params
-  })
-}
-
 // 入库智能提示
 export function stockInHint(params) {
   return request({

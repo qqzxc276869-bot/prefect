@@ -58,13 +58,15 @@ public class ApplyAssistService {
             candidate.add(o);
         }
 
+        // 优化 Prompt，修复之前的格式错误，并明确要求 AI 给出独立的用量建议
         String instruction = "你是实验室试剂申领辅助助手。\n" +
                 "根据用户输入的名称/用途/数量，结合候选试剂列表，输出一个JSON对象：\n" +
                 "{standardizedName, casNo, suggestedQuantity, unit, purposeTemplates[], warnings[], reasoning}\n" +
                 "要求：\n" +
                 "1) standardizedName命中系统常用名，若不确定选择最接近者；casNo尽量补全\n" +
-                "2) suggestedQuantity基于常见用途与历史经验给出合理值（不夸张），保留小数\n" +
-                "3) purposeTemplates给出2-4条常用用途模板（简洁）\n+                4) warnings包含用量、危险性或合规性的简要提示（可空）\n" +
+                "2) suggestedQuantity: 请分析该试剂在常规实验中的典型消耗量或包装规格。如果用户输入的数量（如1）看起来像是默认值或不符合常规（例如浓硫酸通常按500ml/瓶申请，昂贵试剂按mg/g申请），请给出更合理的建议值；如果用户输入合理则保留。\n" +
+                "3) purposeTemplates给出2-4条常用用途模板（简洁、专业）\n" +
+                "4) warnings包含用量安全、危险性或合规性的简要提示（可空）\n" +
                 "5) 严格返回JSON且字段齐全，不要输出多余文字。";
 
         JSONObject payload = new JSONObject();
@@ -87,6 +89,7 @@ public class ApplyAssistService {
         messages.add(usr);
 
         String reply = aiService.chat(req.getModel(), messages);
+        // 增强 JSON 提取逻辑
         String jsonText = stripFence(reply);
 
         ApplyOptimizeResponse resp = new ApplyOptimizeResponse();
@@ -109,25 +112,38 @@ public class ApplyAssistService {
             resp.setSuggestedQuantity(req.getQuantity());
             resp.setUnit(nvl(req.getUnit()));
             resp.setPurposeTemplates(Collections.emptyList());
-            resp.setWarnings(Collections.singletonList("AI未能解析，已按原值保留"));
-            resp.setReasoning("fallback");
+            // 明确提示解析失败，方便调试
+            resp.setWarnings(Collections.singletonList("系统提示：AI返回格式异常，已保留原输入。请尝试重试。"));
+            resp.setReasoning("JSON parse error: " + e.getMessage());
         }
         return resp;
     }
 
+    /**
+     * 增强版字符串清洗，提取 JSON 部分
+     */
     private String stripFence(String text) {
         if (text == null) return "";
         String t = text.trim();
+
+        // 1. 处理 markdown 代码块
         if (t.startsWith("```")) {
             int idx = t.indexOf('\n');
             if (idx > 0) t = t.substring(idx + 1);
             int end = t.lastIndexOf("```");
             if (end > 0) t = t.substring(0, end);
         }
-        return t.trim();
+
+        // 2. 尝试寻找最外层的 { 和 }，处理非代码块包裹的 JSON
+        t = t.trim();
+        int start = t.indexOf('{');
+        int end = t.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            return t.substring(start, end + 1);
+        }
+
+        return t;
     }
 
     private String nvl(String s) { return s == null ? "" : s; }
 }
-
-

@@ -25,7 +25,7 @@ public class AiController {
      * 通用AI对话接口
      * 请求体示例：
      * {
-     *   "model": "qwen2.5:0.5b",
+     *   "model": "qwen-plus-2025-07-28",  // 可选，不传则使用配置的默认模型
      *   "messages": [
      *     {"role":"system","content":"You are a helpful assistant."},
      *     {"role":"user","content":"帮我生成一条公告"}

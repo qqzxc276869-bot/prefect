@@ -50,6 +50,14 @@ export function deleteLocation(id) {
   })
 }
 
+// 获取位置统计信息（用于库位可视化）
+export function getLocationStatistics() {
+  return request({
+    url: '/base/location/statistics',
+    method: 'get'
+  })
+}
+
 
 
 

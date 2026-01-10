@@ -37,6 +37,11 @@ service.interceptors.response.use(
   response => {
     const res = response.data
     
+    // 如果是blob类型（文件下载），直接返回data
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
+    
     // 如果code不是200，表示出错
     if (res.code !== 200) {
       Message({
