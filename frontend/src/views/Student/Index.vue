@@ -1,18 +1,18 @@
 <template>
   <div class="container">
     <el-container style="height: 100%;">
-      <el-header style="background: #409EFF; color: white;">
-        <div style="display: flex; justify-content: space-between; align-items: center; height: 100%;">
-          <h2>实验室化学试剂库存管理系统 - 学生端</h2>
-          <div>
-            <span style="margin-right: 20px;">欢迎，{{ userInfo.realName }}</span>
-            <el-button size="small" type="danger" @click="handleLogout">退出登录</el-button>
+      <el-header>
+        <div class="header-content">
+          <h2 class="header-title">实验室化学试剂库存管理系统 - 学生端</h2>
+          <div class="header-right">
+            <span class="user-info">欢迎，{{ userInfo.realName }}</span>
+            <el-button size="small" type="danger" plain @click="handleLogout">退出登录</el-button>
           </div>
         </div>
       </el-header>
 
       <el-container>
-        <el-aside width="200px" style="background: #f5f5f5;">
+        <el-aside width="240px">
           <el-menu :default-active="activeMenu" @select="handleMenuSelect">
             <el-menu-item index="inventory">
               <i class="el-icon-document"></i>
@@ -503,15 +503,50 @@ export default {
 
 <style scoped>
 .el-header {
-  line-height: 60px;
-  padding: 0 20px;
+  background: white;
+  z-index: 10;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-info {
+  margin-right: 20px;
+  font-size: 14px;
+  color: #64748b;
 }
 
 .el-aside {
-  height: calc(100vh - 60px);
+  background: white;
+  border-right: 1px solid #e5e7eb;
 }
 
-.el-menu {
-  border-right: none;
+.el-main {
+  background-color: #f8fafc;
+}
+
+.el-card {
+  margin-bottom: 24px;
+  transition: transform 0.2s;
+}
+
+.el-card:hover {
+  transform: translateY(-2px);
 }
 </style>

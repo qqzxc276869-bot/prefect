@@ -2,12 +2,12 @@
   <div class="container">
     <el-container style="height: 100%;">
       <!-- 头部 -->
-      <el-header style="background: #E6A23C; color: white;">
-        <div style="display: flex; justify-content: space-between; align-items: center; height: 100%;">
-          <h2>实验室化学试剂库存管理系统 - 系统管理员</h2>
-          <div>
-            <span style="margin-right: 20px;">欢迎，{{ userInfo.realName }}</span>
-            <el-button size="small" type="danger" @click="handleLogout">退出登录</el-button>
+      <el-header>
+        <div class="header-content">
+          <h2 class="header-title">实验室化学试剂库存管理系统 - 系统管理员</h2>
+          <div class="header-right">
+            <span class="user-info">欢迎，{{ userInfo.realName }}</span>
+            <el-button size="small" type="danger" plain @click="handleLogout">退出登录</el-button>
           </div>
         </div>
       </el-header>
@@ -15,7 +15,7 @@
       <!-- 主体 -->
       <el-container>
         <!-- 侧边栏 -->
-        <el-aside width="220px" style="background: #f5f5f5;">
+        <el-aside width="240px">
           <el-menu :default-active="activeMenu" @select="handleMenuSelect">
             <!-- 基础管理 -->
             <el-submenu index="basic">
@@ -100,45 +100,53 @@
             <el-row :gutter="20">
               <el-col :span="6">
                 <el-card class="stat-card">
-                  <div class="stat-icon" style="background: #409EFF;">
-                    <i class="el-icon-user" style="font-size: 40px; color: white;"></i>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-value">{{ userCount }}</div>
-                    <div class="stat-label">用户总数</div>
-                  </div>
-                </el-card>
-              </el-col>
-              <el-col :span="6">
-                <el-card class="stat-card">
-                  <div class="stat-icon" style="background: #67C23A;">
-                    <i class="el-icon-document" style="font-size: 40px; color: white;"></i>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-value">{{ inventoryCount }}</div>
-                    <div class="stat-label">库存种类</div>
+                  <div class="stat-content-wrapper">
+                    <div class="stat-icon-mini" style="background: #ecf5ff; color: #409EFF;">
+                      <i class="el-icon-user"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">用户总数</div>
+                      <div class="stat-value">{{ userCount }}</div>
+                    </div>
                   </div>
                 </el-card>
               </el-col>
               <el-col :span="6">
                 <el-card class="stat-card">
-                  <div class="stat-icon" style="background: #E6A23C;">
-                    <i class="el-icon-warning" style="font-size: 40px; color: white;"></i>
-                  </div>
-                  <div class="stat-content">
-                    <div class="stat-value">{{ warningCount }}</div>
-                    <div class="stat-label">预警数量</div>
+                  <div class="stat-content-wrapper">
+                    <div class="stat-icon-mini" style="background: #f0f9eb; color: #67C23A;">
+                      <i class="el-icon-document"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">库存种类</div>
+                      <div class="stat-value">{{ inventoryCount }}</div>
+                    </div>
                   </div>
                 </el-card>
               </el-col>
               <el-col :span="6">
                 <el-card class="stat-card">
-                  <div class="stat-icon" style="background: #F56C6C;">
-                    <i class="el-icon-s-order" style="font-size: 40px; color: white;"></i>
+                  <div class="stat-content-wrapper">
+                    <div class="stat-icon-mini" style="background: #fdf6ec; color: #E6A23C;">
+                      <i class="el-icon-warning"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">预警数量</div>
+                      <div class="stat-value">{{ warningCount }}</div>
+                    </div>
                   </div>
-                  <div class="stat-content">
-                    <div class="stat-value">{{ applicationCount }}</div>
-                    <div class="stat-label">申请总数</div>
+                </el-card>
+              </el-col>
+              <el-col :span="6">
+                <el-card class="stat-card">
+                  <div class="stat-content-wrapper">
+                    <div class="stat-icon-mini" style="background: #fef0f0; color: #F56C6C;">
+                      <i class="el-icon-s-order"></i>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-label">申请总数</div>
+                      <div class="stat-value">{{ applicationCount }}</div>
+                    </div>
                   </div>
                 </el-card>
               </el-col>
@@ -1163,10 +1171,10 @@ export default {
             data: counts,
             smooth: true,
             lineStyle: {
-              color: '#409EFF'
+              color: '#4f46e5'
             },
             itemStyle: {
-              color: '#409EFF'
+              color: '#4f46e5'
             },
             areaStyle: {
               color: {
@@ -1176,8 +1184,8 @@ export default {
                 x2: 0,
                 y2: 1,
                 colorStops: [
-                  { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
-                  { offset: 1, color: 'rgba(64, 158, 255, 0.1)' }
+                  { offset: 0, color: 'rgba(79, 70, 229, 0.3)' },
+                  { offset: 1, color: 'rgba(79, 70, 229, 0.1)' }
                 ]
               }
             }
@@ -1191,70 +1199,92 @@ export default {
 
 <style scoped>
 .el-header {
-  line-height: 60px;
-  padding: 0 20px;
+  background: white;
+  z-index: 10;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-info {
+  margin-right: 20px;
+  font-size: 14px;
+  color: #64748b;
 }
 
 .el-aside {
-  height: calc(100vh - 60px);
+  background: white;
+  border-right: 1px solid #e5e7eb;
 }
 
 .el-main {
-  height: calc(100vh - 60px);
-  overflow-y: auto;
-  padding: 20px;
-}
-
-.el-menu {
-  border-right: none;
+  background-color: #f8fafc;
 }
 
 .stat-card {
-  display: flex;
-  align-items: center;
-  padding: 20px;
+  padding: 0;
+  overflow: hidden;
 }
 
-.stat-icon {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
+.stat-content-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 24px;
+}
+
+.stat-icon-mini {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20px;
+  font-size: 24px;
+  margin-right: 16px;
 }
 
-.stat-content {
-  flex: 1;
+.stat-info {
+  display: flex;
+  flex-direction: column;
 }
 
 .stat-value {
-  font-size: 32px;
-  font-weight: bold;
-  color: #333;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #999;
-  margin-top: 5px;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 4px;
+  font-weight: 500;
 }
 
-/* 图表容器样式 */
 .el-card {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  transition: transform 0.2s;
 }
 
-.el-card .el-card__body {
-  padding: 20px;
-}
-
-/* 确保图表能够正常显示 */
-.chart-container {
-  width: 100%;
-  height: 100%;
-  min-height: 300px;
+.el-card:hover {
+  transform: translateY(-2px);
 }
 </style>
 

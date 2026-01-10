@@ -96,43 +96,51 @@ export default {
 .login-container {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: #f8fafc;
   display: flex;
   justify-content: center;
   align-items: center;
+  background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 .login-box {
-  width: 450px;
-  padding: 40px;
+  width: 420px;
+  padding: 48px;
   background: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 .title {
   text-align: center;
-  margin-bottom: 30px;
-  color: #333;
+  margin-bottom: 32px;
+  color: #1e293b;
   font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .login-form {
-  margin-top: 20px;
+  margin-top: 24px;
+}
+
+.login-form .el-form-item {
+  margin-bottom: 20px;
 }
 
 .demo-account {
-  margin-top: 20px;
-  padding: 15px;
-  background: #f5f5f5;
-  border-radius: 5px;
-  font-size: 12px;
-  color: #666;
-  line-height: 1.8;
+  margin-top: 24px;
+  padding: 20px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.6;
 }
 
 .demo-account p {
-  margin: 0;
+  margin-bottom: 4px;
 }
 </style>
 
