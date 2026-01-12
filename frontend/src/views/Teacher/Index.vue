@@ -26,8 +26,9 @@
               <span>入库登记</span>
             </el-menu-item>
             <el-menu-item index="applications">
-              <i class="el-icon-s-order"></i>
-              <span>申请审批</span>
+              <i class="el-icon-s-check"></i>
+              <span>申领审批</span>
+              <el-badge v-if="pendingApplicationsCount > 0 && !applicationsViewed" :value="pendingApplicationsCount" class="menu-badge" />
             </el-menu-item>
             <el-menu-item index="stockOut">
             <i class="el-icon-sold-out"></i>
@@ -36,10 +37,12 @@
           <el-menu-item index="warning">
             <i class="el-icon-warning"></i>
             <span>库存预警</span>
-          </el-menu-item>
+            <el-badge v-if="warningCount > 0 && !warningsViewed" :value="warningCount" class="menu-badge" />
+            </el-menu-item>
             <el-menu-item index="records">
-              <i class="el-icon-tickets"></i>
+              <i class="el-icon-s-order"></i>
               <span>出入库记录</span>
+              <el-badge v-if="!recordsViewed" is-dot class="menu-badge" />
             </el-menu-item>
             <el-menu-item index="announcements">
               <i class="el-icon-bell"></i>
@@ -47,7 +50,8 @@
             </el-menu-item>
             <el-menu-item index="feedback">
               <i class="el-icon-chat-line-square"></i>
-              <span>反馈处理</span>
+              <span>意见反馈</span>
+              <el-badge v-if="pendingFeedbackCount > 0 && !feedbackViewed" :value="pendingFeedbackCount" class="menu-badge" />
             </el-menu-item>
             <el-menu-item index="ai-assistant">
               <i class="el-icon-chat-dot-round"></i>
@@ -63,25 +67,41 @@
             <el-card>
               <div slot="header">
                 <span>库存管理</span>
-                <el-input
-                  v-model="searchName"
-                  placeholder="输入试剂名称搜索"
-                  style="width: 300px; float: right;"
-                  @change="loadInventory"
-                  clearable
-                >
-                  <el-button slot="append" icon="el-icon-search" @click="loadInventory"></el-button>
-                </el-input>
+                <div style="float: right; display: flex; gap: 10px; align-items: center;">
+                  <el-select v-model="filterStatus" @change="handleFilterChange" size="small" placeholder="状态" style="width: 120px;" clearable>
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="正常" value="NORMAL"></el-option>
+                    <el-option label="库存不足" value="LOW"></el-option>
+                    <el-option label="即将过期" value="EXPIRING"></el-option>
+                    <el-option label="已过期" value="EXPIRED"></el-option>
+                  </el-select>
+                  <el-select v-model="sortField" @change="handleFilterChange" size="small" placeholder="排序方式" style="width: 140px;" clearable>
+                    <el-option label="更新时间" value="update_time"></el-option>
+                    <el-option label="有效期" value="expiry_date"></el-option>
+                    <el-option label="库存数量" value="quantity"></el-option>
+                    <el-option label="预警阈值" value="warning_threshold"></el-option>
+                  </el-select>
+                  <el-input
+                    v-model="searchName"
+                    placeholder="输入试剂名称搜索"
+                    style="width: 200px;"
+                    @change="loadInventory"
+                    size="small"
+                    clearable
+                  >
+                    <el-button slot="append" icon="el-icon-search" @click="loadInventory"></el-button>
+                  </el-input>
+                </div>
               </div>
               <el-table :data="inventoryList" border>
-                <el-table-column prop="reagentName" label="试剂名称" width="130"></el-table-column>
+                <el-table-column prop="reagentName" label="试剂名称" min-width="130"></el-table-column>
                 <el-table-column prop="specification" label="规格" width="100"></el-table-column>
                 <el-table-column prop="batchNo" label="批次号" width="120"></el-table-column>
                 <el-table-column prop="quantity" label="库存数量" width="90"></el-table-column>
                 <el-table-column prop="warningThreshold" label="预警阈值" width="90"></el-table-column>
-                <el-table-column prop="locationName" label="存放位置" width="150"></el-table-column>
+                <el-table-column prop="locationName" label="存放位置" min-width="150"></el-table-column>
                 <el-table-column prop="expiryDate" label="有效期" width="110"></el-table-column>
-                <el-table-column prop="status" label="状态" width="90">
+                <el-table-column prop="status" label="状态" width="100">
                   <template slot-scope="scope">
                     <el-tag v-if="scope.row.status === 'NORMAL'" type="success">正常</el-tag>
                     <el-tag v-else-if="scope.row.status === 'LOW'" type="warning">库存不足</el-tag>
@@ -95,6 +115,16 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <el-pagination
+                @size-change="handleInventorySizeChange"
+                @current-change="handleInventoryPageChange"
+                :current-page="inventoryPage"
+                :page-sizes="[10, 20, 50, 100]"
+                :page-size="inventoryPageSize"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="inventoryTotal"
+                style="margin-top: 20px; text-align: right;"
+              ></el-pagination>
             </el-card>
           </div>
           
@@ -180,22 +210,21 @@
               <div slot="header">出库管理</div>
               <el-form :model="stockOutForm" ref="stockOutForm" label-width="120px">
                 <el-form-item label="关联申请单">
-                  <el-select v-model="stockOutForm.applicationId" placeholder="选择申请单（可选）" clearable style="width: 100%;">
+                  <el-select v-model="stockOutForm.applicationId" placeholder="选择申请单（可选）" clearable style="width: 100%;" @change="handleApplicationChange">
                     <el-option
                       v-for="item in approvedList"
                       :key="item.id"
                       :label="`${item.applicationNo} - ${item.reagentName} - ${item.applicantName}`"
                       :value="item.id"
-                      @click.native="selectApplication(item)"
                     ></el-option>
                   </el-select>
                 </el-form-item>
                 <el-form-item label="库存" required>
                   <el-select v-model="stockOutForm.inventoryId" placeholder="请选择库存" style="width: 100%;">
                     <el-option
-                      v-for="item in inventoryList"
+                      v-for="item in stockOutInventoryList"
                       :key="item.id"
-                      :label="`${item.reagentName} - ${item.batchNo} - 库存：${item.quantity}`"
+                      :label="`${item.reagentName} - ${item.batchNo} - 库存：${item.quantity} - 位置：${item.locationName}`"
                       :value="item.id"
                     ></el-option>
                   </el-select>
@@ -227,7 +256,13 @@
                 <span>库存预警</span>
                 <el-button size="small" type="primary" style="float: right;" @click="exportInventoryData">导出库存清单</el-button>
               </div>
-              <el-table :data="warningList" border>
+              <el-tabs v-model="warningTab" style="margin-bottom: 15px;">
+                <el-tab-pane label="全部" name="ALL"></el-tab-pane>
+                <el-tab-pane label="库存不足" name="LOW"></el-tab-pane>
+                <el-tab-pane label="试剂临期" name="EXPIRING"></el-tab-pane>
+                <el-tab-pane label="已过期" name="EXPIRED"></el-tab-pane>
+              </el-tabs>
+              <el-table :data="filteredWarningList" border>
                 <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
                 <el-table-column prop="specification" label="规格" width="120"></el-table-column>
                 <el-table-column prop="quantity" label="当前库存" width="100"></el-table-column>
@@ -284,22 +319,41 @@
                 <el-tab-pane label="入库记录" name="in">
                   <el-table :data="stockInRecords" border>
                     <el-table-column prop="batchNo" label="批次号" width="150"></el-table-column>
+                    <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
                     <el-table-column prop="quantity" label="入库数量" width="100"></el-table-column>
                     <el-table-column prop="supplier" label="供应商" width="180"></el-table-column>
                     <el-table-column prop="operatorName" label="操作人" width="100"></el-table-column>
                     <el-table-column prop="createTime" label="入库时间" width="180"></el-table-column>
                     <el-table-column prop="remark" label="备注" min-width="200"></el-table-column>
                   </el-table>
+                  <el-pagination
+                    @current-change="handleStockInPageChange"
+                    :current-page="stockInPage"
+                    :page-size="stockInPageSize"
+                    layout="total, prev, pager, next"
+                    :total="stockInTotal"
+                    style="margin-top: 20px; text-align: right;"
+                  ></el-pagination>
                 </el-tab-pane>
                 <el-tab-pane label="出库记录" name="out">
                   <el-table :data="stockOutRecords" border>
+                    <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
+                    <el-table-column prop="batchNo" label="批次号" width="150"></el-table-column>
                     <el-table-column prop="quantity" label="出库数量" width="100"></el-table-column>
-                    <el-table-column prop="recipientName" label="领用人" width="100"></el-table-column>
+                    <el-table-column prop="recipientName" label="领用人" width="120"></el-table-column>
                     <el-table-column prop="operatorName" label="操作人" width="100"></el-table-column>
-                    <el-table-column prop="purpose" label="用途" min-width="200"></el-table-column>
                     <el-table-column prop="createTime" label="出库时间" width="180"></el-table-column>
+                    <el-table-column prop="purpose" label="用途" min-width="150"></el-table-column>
                     <el-table-column prop="remark" label="备注" min-width="150"></el-table-column>
                   </el-table>
+                  <el-pagination
+                    @current-change="handleStockOutPageChange"
+                    :current-page="stockOutPage"
+                    :page-size="stockOutPageSize"
+                    layout="total, prev, pager, next"
+                    :total="stockOutTotal"
+                    style="margin-top: 20px; text-align: right;"
+                  ></el-pagination>
                 </el-tab-pane>
               </el-tabs>
             </el-card>
@@ -314,27 +368,60 @@
           <div v-show="activeMenu === 'feedback'">
             <el-card>
               <div slot="header">
-                <i class="el-icon-chat-line-square"></i> 待处理反馈
+                <i class="el-icon-chat-line-square"></i> 反馈处理
               </div>
-              <el-table :data="feedbackList" border>
-                <el-table-column prop="feedbackType" label="类型" width="100">
-                  <template slot-scope="scope">
-                    <el-tag v-if="scope.row.feedbackType === 'REAGENT'" type="warning">试剂问题</el-tag>
-                    <el-tag v-else-if="scope.row.feedbackType === 'SYSTEM'" type="danger">系统问题</el-tag>
-                    <el-tag v-else type="info">建议</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="userName" label="提交人" width="100"></el-table-column>
-                <el-table-column prop="title" label="标题" width="150" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="content" label="内容" min-width="250" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="createTime" label="提交时间" width="180"></el-table-column>
-                <el-table-column label="操作" width="200">
-                  <template slot-scope="scope">
-                    <el-button size="mini" type="success" @click="handleFeedbackItem(scope.row, 'RESOLVED')">已解决</el-button>
-                    <el-button size="mini" type="warning" @click="handleFeedbackItem(scope.row, 'PROCESSING')">处理中</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
+              <el-tabs v-model="feedbackTab" @tab-click="handleFeedbackTabClick">
+                <el-tab-pane label="待处理反馈" name="pending">
+                  <el-table :data="pendingFeedbackList" border>
+                    <el-table-column prop="feedbackType" label="类型" width="100">
+                      <template slot-scope="scope">
+                        <el-tag v-if="scope.row.feedbackType === 'REAGENT'" type="warning">试剂问题</el-tag>
+                        <el-tag v-else-if="scope.row.feedbackType === 'SYSTEM'" type="danger">系统问题</el-tag>
+                        <el-tag v-else type="info">建议</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="userName" label="提交人" width="100"></el-table-column>
+                    <el-table-column prop="title" label="标题" width="140" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="content" label="内容" min-width="200" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="createTime" label="提交时间" width="160"></el-table-column>
+                    <el-table-column label="操作" width="240" fixed="right">
+                      <template slot-scope="scope">
+                        <el-button size="mini" type="text" @click="viewTeacherFeedbackDetail(scope.row)">查看详情</el-button>
+                        <el-button size="mini" type="success" @click="handleFeedbackItem(scope.row, 'RESOLVED')">已解决</el-button>
+                        <el-button size="mini" type="warning" @click="handleFeedbackItem(scope.row, 'PROCESSING')">处理中</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </el-tab-pane>
+                <el-tab-pane label="已处理反馈" name="handled">
+                  <el-table :data="handledFeedbackList" border>
+                    <el-table-column prop="feedbackType" label="类型" width="100">
+                      <template slot-scope="scope">
+                        <el-tag v-if="scope.row.feedbackType === 'REAGENT'" type="warning">试剂问题</el-tag>
+                        <el-tag v-else-if="scope.row.feedbackType === 'SYSTEM'" type="danger">系统问题</el-tag>
+                        <el-tag v-else type="info">建议</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="userName" label="提交人" width="100"></el-table-column>
+                    <el-table-column prop="title" label="标题" width="140" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="content" label="内容" min-width="180" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="status" label="状态" width="90">
+                      <template slot-scope="scope">
+                        <el-tag v-if="scope.row.status === 'PROCESSING'" type="primary">处理中</el-tag>
+                        <el-tag v-else-if="scope.row.status === 'RESOLVED'" type="success">已解决</el-tag>
+                        <el-tag v-else type="info">已关闭</el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="handleRemark" label="处理备注" width="140" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="createTime" label="提交时间" width="160"></el-table-column>
+                    <el-table-column label="操作" width="100" fixed="right">
+                      <template slot-scope="scope">
+                        <el-button size="mini" type="text" @click="viewTeacherFeedbackDetail(scope.row)">查看详情</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </el-tab-pane>
+              </el-tabs>
             </el-card>
           </div>
         </el-main>
@@ -356,6 +443,38 @@
         <el-button type="primary" @click="updateThreshold">确定</el-button>
       </span>
     </el-dialog>
+    
+    <!-- 反馈详情对话框 -->
+    <el-dialog title="反馈详情" :visible.sync="teacherFeedbackDetailVisible" width="700px">
+      <el-descriptions :column="1" border v-if="currentTeacherFeedback">
+        <el-descriptions-item label="反馈类型">
+          <el-tag v-if="currentTeacherFeedback.feedbackType === 'REAGENT'" type="warning">试剂问题</el-tag>
+          <el-tag v-else-if="currentTeacherFeedback.feedbackType === 'SYSTEM'" type="danger">系统问题</el-tag>
+          <el-tag v-else type="info">建议</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="提交人">{{ currentTeacherFeedback.userName || '未知' }}</el-descriptions-item>
+        <el-descriptions-item label="标题">{{ currentTeacherFeedback.title }}</el-descriptions-item>
+        <el-descriptions-item label="详细内容">
+          <div style="white-space: pre-wrap; line-height: 1.6;">{{ currentTeacherFeedback.content }}</div>
+        </el-descriptions-item>
+        <el-descriptions-item label="提交时间">{{ currentTeacherFeedback.createTime }}</el-descriptions-item>
+        <el-descriptions-item label="当前状态">
+          <el-tag v-if="currentTeacherFeedback.status === 'PENDING'" type="warning">待处理</el-tag>
+          <el-tag v-else-if="currentTeacherFeedback.status === 'PROCESSING'" type="primary">处理中</el-tag>
+          <el-tag v-else-if="currentTeacherFeedback.status === 'RESOLVED'" type="success">已解决</el-tag>
+          <el-tag v-else type="info">已关闭</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="处理备注" v-if="currentTeacherFeedback.handleRemark">
+          <div style="white-space: pre-wrap; line-height: 1.6;">{{ currentTeacherFeedback.handleRemark }}</div>
+        </el-descriptions-item>
+        <el-descriptions-item label="处理时间" v-if="currentTeacherFeedback.handleTime">{{ currentTeacherFeedback.handleTime }}</el-descriptions-item>
+      </el-descriptions>
+      <span slot="footer">
+        <el-button @click="teacherFeedbackDetailVisible = false">关闭</el-button>
+        <el-button v-if="currentTeacherFeedback && currentTeacherFeedback.status === 'PENDING'" type="success" @click="handleFeedbackFromDetail('RESOLVED')">标记为已解决</el-button>
+        <el-button v-if="currentTeacherFeedback && currentTeacherFeedback.status === 'PENDING'" type="warning" @click="handleFeedbackFromDetail('PROCESSING')">标记为处理中</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -367,7 +486,7 @@ import { getReagentList } from '@/api/reagent'
 import { stockInHint, approvePrecheck } from '@/api/ai'
 import { getLocationList } from '@/api/base'
 import { getAnnouncements } from '@/api/announcement'
-import { getPendingFeedback, handleFeedback } from '@/api/feedback'
+import { getPendingFeedback, getAllFeedback, handleFeedback } from '@/api/feedback'
 import { exportInventory, exportStockIn, exportStockOut, getFifoSuggestion, getReplenishSuggestions } from '@/api/export'
 import AnnouncementList from '@/components/AnnouncementList.vue'
 
@@ -376,23 +495,56 @@ export default {
   components: {
     AnnouncementList
   },
+  computed: {
+    filteredWarningList() {
+      if (this.warningTab === 'ALL') return this.warningList
+      return this.warningList.filter(item => item.status === this.warningTab)
+    }
+  },
   data() {
     return {
       activeMenu: 'inventory',
       userInfo: this.$store.state.userInfo,
       searchName: '',
       inventoryList: [],
+      // 分页相关
+      inventoryPage: 1,
+      inventoryPageSize: 10,
+      inventoryTotal: 0,
+      stockOutInventoryList: [],
+      warningTab: 'ALL',
+      // 预警相关
+      warningCount: 0,
+      warningsViewed: false,
+      pendingApplicationsCount: 0,
+      applicationsViewed: false,
+      pendingFeedbackCount: 0,
+      feedbackViewed: false,
+      recordsViewed: true, // 初始设为已读
+      filterStatus: '',
+      sortField: 'update_time',
       reagentList: [],
       locationList: [],
-      pendingList: [],
       approvedList: [],
+      pendingList: [],
       warningList: [],
-      announcementList: [],
-      feedbackList: [],
+      pendingFeedbackList: [],
+      handledFeedbackList: [],
+      // 出入库记录分页
       stockInRecords: [],
+      stockInPage: 1,
+      stockInPageSize: 10,
+      stockInTotal: 0,
       stockOutRecords: [],
+      stockOutPage: 1,
+      stockOutPageSize: 10,
+      stockOutTotal: 0,
       recordTab: 'in',
+      feedbackTab: 'pending',
       replenishSuggestions: [],
+      // 反馈详情相关
+      teacherFeedbackDetailVisible: false,
+      currentTeacherFeedback: null,
       stockInForm: {
         reagentId: null,
         batchNo: '',
@@ -425,30 +577,72 @@ export default {
     this.loadReagents()
     this.loadLocations()
     this.loadAnnouncements()
+    this.loadPendingApplications()
+    this.loadWarningList()
+    this.loadFeedback()
   },
   methods: {
     handleMenuSelect(index) {
       this.activeMenu = index
       if (index === 'applications') {
         this.loadPendingApplications()
+        this.applicationsViewed = true
       } else if (index === 'warning') {
         this.loadWarningList()
+        this.warningsViewed = true
       } else if (index === 'records') {
         this.loadStockRecords()
+        this.recordsViewed = true
       } else if (index === 'stockOut') {
         this.loadApprovedApplications()
+        this.loadInventoryForStockOut()
       } else if (index === 'announcements') {
         this.loadAnnouncements()
       } else if (index === 'feedback') {
         this.loadFeedback()
+        this.feedbackViewed = true
       } else if (index === 'ai-assistant') {
         this.$router.push('/ai-assistant')
       }
     },
     loadInventory() {
-      getInventoryList({ name: this.searchName }).then(res => {
-        this.inventoryList = res.data
+      // 同时更新预警数
+      this.loadWarningList()
+      this.searchLoading = true
+      const params = {
+        name: this.searchName,
+        page: this.inventoryPage,
+        size: this.inventoryPageSize
+      }
+      if (this.filterStatus) {
+        params.status = this.filterStatus
+      }
+      if (this.sortField) {
+        params.sortField = this.sortField
+        params.sortOrder = 'DESC'
+      }
+      getInventoryList(params).then(res => {
+        if (res.data && res.data.records) {
+          this.inventoryList = res.data.records
+          this.inventoryTotal = res.data.total || 0
+        } else {
+          this.inventoryList = res.data || []
+          this.inventoryTotal = this.inventoryList.length
+        }
       })
+    },
+    handleFilterChange() {
+      this.inventoryPage = 1
+      this.loadInventory()
+    },
+    handleInventorySizeChange(val) {
+      this.inventoryPageSize = val
+      this.inventoryPage = 1
+      this.loadInventory()
+    },
+    handleInventoryPageChange(val) {
+      this.inventoryPage = val
+      this.loadInventory()
     },
     loadReagents() {
       getReagentList().then(res => {
@@ -467,7 +661,12 @@ export default {
     },
     loadPendingApplications() {
       getPendingApplications().then(res => {
-        this.pendingList = res.data
+        const list = res.data || []
+        if (list.length > this.pendingApplicationsCount) {
+          this.applicationsViewed = false
+        }
+        this.pendingList = list
+        this.pendingApplicationsCount = list.length
       })
     },
     loadApprovedApplications() {
@@ -477,22 +676,46 @@ export default {
     },
     loadWarningList() {
       getWarningList().then(res => {
-        this.warningList = res.data
+        const list = res.data || []
+        if (list.length > this.warningCount) {
+          this.warningsViewed = false
+        }
+        this.warningList = list
+        this.warningCount = list.length
       })
       // 加载AI补货建议
       this.loadReplenishSuggestions()
     },
     loadReplenishSuggestions() {
-      getReplenishSuggestions({ model: 'qwen-plus-2025-07-28' }).then(res => {
+      getReplenishSuggestions({ model: '' }).then(res => {
         this.replenishSuggestions = res.data || []
       }).catch(() => {
         this.replenishSuggestions = []
       })
     },
     loadFeedback() {
-      getPendingFeedback().then(res => {
-        this.feedbackList = res.data || []
-      })
+      if (this.feedbackTab === 'pending') {
+        getPendingFeedback().then(res => {
+          const list = res.data || []
+          if (list.length > this.pendingFeedbackCount) {
+            this.feedbackViewed = false
+          }
+          this.pendingFeedbackList = list
+          this.pendingFeedbackCount = list.length
+        })
+      } else {
+        // 加载已处理的反馈
+        getAllFeedback().then(res => {
+          this.handledFeedbackList = (res.data || []).filter(f => f.status !== 'PENDING')
+        })
+      }
+    },
+    handleFeedbackTabClick() {
+      this.loadFeedback()
+    },
+    viewTeacherFeedbackDetail(row) {
+      this.currentTeacherFeedback = row
+      this.teacherFeedbackDetailVisible = true
     },
     handleFeedbackItem(row, status) {
       this.$prompt('请输入处理备注', '处理反馈', {
@@ -506,20 +729,53 @@ export default {
         }).then(() => {
           this.$message.success('处理成功')
           this.loadFeedback()
-        })
-      })
+        }).catch(() => {})
+      }).catch(() => {})
+    },
+    handleFeedbackFromDetail(status) {
+      this.$prompt('请输入处理备注', '处理反馈', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入处理备注'
+      }).then(({ value }) => {
+        handleFeedback(this.currentTeacherFeedback.id, {
+          status: status,
+          remark: value || ''
+        }).then(() => {
+          this.$message.success('处理成功')
+          this.teacherFeedbackDetailVisible = false
+          this.loadFeedback()
+        }).catch(() => {})
+      }).catch(() => {})
     },
     loadStockRecords() {
-      getStockInList({ page: 1, size: 100 }).then(res => {
+      this.loadStockInRecords()
+      this.loadStockOutRecords()
+    },
+    loadStockInRecords() {
+      getStockInList({ page: this.stockInPage, size: this.stockInPageSize }).then(res => {
         this.stockInRecords = res.data.records || []
+        this.stockInTotal = res.data.total || 0
       })
-      getStockOutList({ page: 1, size: 100 }).then(res => {
+    },
+    loadStockOutRecords() {
+      getStockOutList({ page: this.stockOutPage, size: this.stockOutPageSize }).then(res => {
         this.stockOutRecords = res.data.records || []
+        this.stockOutTotal = res.data.total || 0
       })
+    },
+    handleStockInPageChange(val) {
+      this.stockInPage = val
+      this.loadStockInRecords()
+    },
+    handleStockOutPageChange(val) {
+      this.stockOutPage = val
+      this.loadStockOutRecords()
     },
     submitStockIn() {
       stockIn(this.stockInForm).then(() => {
         this.$message.success('入库成功')
+        this.recordsViewed = false // 产生新纪录，设为未读
         this.resetStockInForm()
         this.loadInventory()
       })
@@ -528,7 +784,7 @@ export default {
       const reagent = this.reagentList.find(x => x.id === this.stockInForm.reagentId)
       const name = reagent ? reagent.name : ''
       const unit = reagent ? (reagent.unit || '') : ''
-      stockInHint({ name, batchNo: this.stockInForm.batchNo, quantity: this.stockInForm.quantity, unit, model: 'qwen-plus-2025-07-28' })
+      stockInHint({ name, batchNo: this.stockInForm.batchNo, quantity: this.stockInForm.quantity, unit, model: '' })
         .then(res => {
           const d = res.data || {}
           const tips = []
@@ -607,6 +863,39 @@ export default {
       this.stockOutForm.quantity = app.quantity
       this.stockOutForm.purpose = app.purpose
     },
+    handleApplicationChange(val) {
+      if (!val) {
+        this.resetStockOutForm()
+        this.loadInventoryForStockOut()
+        return
+      }
+      const app = this.approvedList.find(x => x.id === val)
+      if (app) {
+        this.selectApplication(app)
+        this.loadInventoryForStockOut(app.reagentName)
+        
+        // 自动获取先进先出建议
+        getFifoSuggestion(app.reagentId).then(res => {
+          if (res.data && res.data.inventoryId) {
+            this.stockOutForm.inventoryId = res.data.inventoryId
+            this.$message.info(`AI建议使用批次：${res.data.batchNo} (先进先出原则)`)
+          }
+        })
+      }
+    },
+    loadInventoryForStockOut(name = '') {
+      const params = {
+        page: 1,
+        size: 100, // 获取较多记录供选择
+        status: 'NORMAL' // 只显示正常状态库存
+      }
+      if (name) {
+        params.name = name
+      }
+      getInventoryList(params).then(res => {
+        this.stockOutInventoryList = res.data.records || res.data || []
+      })
+    },
     submitStockOut() {
       if (!this.stockOutForm.inventoryId) {
         this.$message.warning('请选择库存')
@@ -614,7 +903,7 @@ export default {
       }
       
       // 获取选中的库存信息
-      const selectedInventory = this.inventoryList.find(x => x.id === this.stockOutForm.inventoryId)
+      const selectedInventory = this.stockOutInventoryList.find(x => x.id === this.stockOutForm.inventoryId)
       if (selectedInventory && selectedInventory.reagentId) {
         // 获取FIFO建议
         getFifoSuggestion(selectedInventory.reagentId).then(res => {
@@ -627,7 +916,7 @@ export default {
               type: 'warning'
             }).then(() => {
               this.doStockOut()
-            })
+            }).catch(() => {})
           } else {
             this.doStockOut()
           }
@@ -641,8 +930,10 @@ export default {
     doStockOut() {
       stockOut(this.stockOutForm).then(() => {
         this.$message.success('出库成功')
+        this.recordsViewed = false // 产生新纪录，设为未读
         this.resetStockOutForm()
         this.loadInventory()
+        this.loadPendingApplications()
       })
     },
     resetStockOutForm() {
@@ -655,6 +946,7 @@ export default {
         purpose: '',
         remark: ''
       }
+      this.loadInventoryForStockOut()
     },
     handleReview(row, status) {
       const message = status === 'APPROVED' ? '确定通过该申请吗？' : '确定拒绝该申请吗？'
@@ -669,8 +961,9 @@ export default {
         }).then(() => {
           this.$message.success('审批成功')
           this.loadPendingApplications()
-        })
-      })
+          this.loadInventory() // 可能影响库存预警
+        }).catch(() => {})
+      }).catch(() => {})
     },
     handlePrecheck(row) {
       approvePrecheck({ applicationId: row.id, model: 'qwen-plus-2025-07-28' }).then(res => {
@@ -775,7 +1068,7 @@ export default {
       }).then(() => {
         this.$store.dispatch('logout')
         this.$router.push('/login')
-      })
+      }).catch(() => {})
     }
   }
 }
@@ -828,6 +1121,13 @@ export default {
 
 .el-card:hover {
   transform: translateY(-2px);
+}
+.menu-badge {
+  margin-left: 8px;
+}
+
+.menu-badge /deep/ .el-badge__content {
+  line-height: 18px;
 }
 </style>
 

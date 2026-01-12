@@ -49,10 +49,10 @@ public class SemanticSearchService {
         }
         int k = (topK == null || topK <= 0 || topK > 20) ? 8 : topK;
 
-        // 取部分候选，避免上下文过长
+        // 性能优化：减少候选数量，提升响应速度
         List<Reagent> all = reagentService.list();
         List<Reagent> candidates = all.stream()
-                .limit(300)
+                .limit(50)  // 从300减少到50，大幅提升速度
                 .collect(Collectors.toList());
 
         // 组装候选JSON，尽量精简
@@ -62,7 +62,7 @@ public class SemanticSearchService {
             obj.set("id", r.getId());
             obj.set("name", r.getName());
             obj.set("casNo", r.getCasNo());
-            obj.set("specification", r.getSpecification());
+            // 去除specification字段，进一步减少数据量
             candidateArr.add(obj);
         }
 

@@ -1,6 +1,7 @@
 package com.lab.reagent.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lab.reagent.entity.Inventory;
 import com.lab.reagent.entity.StorageLocation;
@@ -32,8 +33,22 @@ public class InventoryService extends ServiceImpl<InventoryMapper, Inventory> {
     /**
      * 查询库存列表
      */
-    public List<InventoryVO> getInventoryList(String name) {
-        return inventoryMapper.selectInventoryList(name);
+    public List<InventoryVO> getInventoryList(String name, String status, String sortField, String sortOrder) {
+        if (sortField != null && !sortField.isEmpty()) {
+            return inventoryMapper.selectInventoryListWithSort(name, status, sortField, sortOrder);
+        }
+        return inventoryMapper.selectInventoryList(name, status);
+    }
+    
+    /**
+     * 分页查询库存列表
+     */
+    public Page<InventoryVO> getInventoryPage(Integer page, Integer size, String name, String status, String sortField, String sortOrder) {
+        Page<InventoryVO> pageInfo = new Page<>(page, size);
+        if (sortField != null && !sortField.isEmpty()) {
+            return inventoryMapper.selectInventoryPageWithSort(pageInfo, name, status, sortField, sortOrder);
+        }
+        return inventoryMapper.selectInventoryPage(pageInfo, name, status);
     }
     
     /**
@@ -56,7 +71,7 @@ public class InventoryService extends ServiceImpl<InventoryMapper, Inventory> {
             List<StorageLocation> locations = locationMapper.selectList(locationWrapper);
             
             // 获取所有库存数据
-            List<InventoryVO> allInventory = inventoryMapper.selectInventoryList(null);
+            List<InventoryVO> allInventory = inventoryMapper.selectInventoryList(null, null);
             
             // 按位置分组统计（通过locationId匹配）
             List<LocationStatisticsVO> statistics = new java.util.ArrayList<>();

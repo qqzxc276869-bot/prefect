@@ -10,8 +10,8 @@ import com.lab.reagent.entity.StockOutRecord;
 import com.lab.reagent.mapper.InventoryMapper;
 import com.lab.reagent.mapper.ReagentMapper;
 import com.lab.reagent.mapper.StockOutRecordMapper;
+import com.lab.reagent.config.AiProperties;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -40,11 +40,8 @@ public class AiReplenishService {
     @Autowired
     private RestTemplate restTemplate;
     
-    @Value("${ai.base-url}")
-    private String aiBaseUrl;
-    
-    @Value("${ai.api-key}")
-    private String apiKey;
+    @Autowired
+    private AiProperties aiProperties;
     
     /**
      * 获取补货建议
@@ -115,8 +112,10 @@ public class AiReplenishService {
                 reagent.getSupplierLeadTime() != null ? reagent.getSupplierLeadTime() : 7
             );
             
+            String useModel = (model == null || model.trim().isEmpty()) ? aiProperties.getModel() : model;
+            
             JSONObject requestBody = new JSONObject();
-            requestBody.put("model", model);
+            requestBody.put("model", useModel);
             
             JSONArray messages = new JSONArray();
             JSONObject message = new JSONObject();
@@ -129,11 +128,11 @@ public class AiReplenishService {
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + apiKey);
+            headers.set("Authorization", "Bearer " + aiProperties.getApiKey());
             
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toJSONString(), headers);
             
-            String response = restTemplate.postForObject(aiBaseUrl + "/chat/completions", entity, String.class);
+            String response = restTemplate.postForObject(aiProperties.getBaseUrl() + "/chat/completions", entity, String.class);
             
             JSONObject jsonResponse = JSON.parseObject(response);
             String content = jsonResponse.getJSONArray("choices")

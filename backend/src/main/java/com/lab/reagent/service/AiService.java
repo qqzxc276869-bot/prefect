@@ -25,6 +25,28 @@ public class AiService {
     private AiProperties aiProperties;
 
     /**
+     * 系统领域知识 Prompt
+     */
+    // 化学领域专业知识库
+    private static final String CHEMISTRY_KNOWLEDGE = 
+        "《化学试剂专业知识》\n" +
+        "- 常见有机溶剂：乙醇(64-17-5)、甲醇(67-56-1)、乙酸乙酯(141-78-6)、二氯甲烷(75-09-2)、四氢呋喃(109-99-9)、丙酮(67-64-1)\n" +
+        "- 常见无机试剂：盐酸(7647-01-0)、硫酸(7664-93-9)、氢氧化钠(1310-73-2)、高锰酸钾(7722-64-7)、氯化钠(7647-14-5)\n" +
+        "- 危险等级：剧毒、高毒、易燃、易爆、强腐蚀、强氧化\n" +
+        "- 存储要求：阴凉避光、密封保存、远离火源、分类存放、酸碱分离\n" +
+        "- 常用单位：mL(毫升)、L(升)、g(克)、kg(千克)、瓶、罐\n" +
+        "- 试剂规格：分析纯(AR)、化学纯(CP)、优级纯(GR)、色谱纯(HPLC)\n";
+    
+    private static final String SYSTEM_KNOWLEDGE = 
+        "### 核心业务指令 (CORE MISSION) ###\n" +
+        "你不是通用AI助手。你是由【实验室化学试剂管理系统】深度集成的专用智能内核。\n" +
+        "1. **身份边界**：你的服务对象仅限于化学实验室。严禁讨论电商、游戏、手机数码、北京/上海仓储等泛化场景。如果用户问“库存”，指且仅指本系统的【化学试剂库存】。\n" +
+        "2. **数据主权**：随对话提供的【真实库存快照】是你唯一的知识来源。如果看到快照，请立即进入专家模式，直接列出数据或进行分析。\n" +
+        "3. **禁令**：严禁回答“我无法查看数据库”或“请登录系统查看”。你看到的快照就是你从数据库“实时读取”的结果，请以“本系统当前记录...”的确定语气回复。\n" +
+        "4. **安全底线**：所有建议必须符合实验室安全管理规范。\n" +
+        CHEMISTRY_KNOWLEDGE;
+
+    /**
      * 调用AI模型生成回复（使用Ollama API）
      * @param model 模型名称，如果为空则使用配置的默认模型
      * @param messages 对话消息列表
@@ -36,19 +58,47 @@ public class AiService {
         }
         
         String useModel = (model == null || model.trim().isEmpty()) ? aiProperties.getModel() : model;
-        // 兜底：如果消息为空，提供默认对话
-        if (messages == null || messages.isEmpty()) {
-            Map<String, String> sys = new HashMap<>();
-            sys.put("role", "system");
-            sys.put("content", "You are a helpful assistant.");
+        
+        StringBuilder systemContent = new StringBuilder(SYSTEM_KNOWLEDGE);
+        List<Map<String, String>> conversationMessages = new java.util.ArrayList<>();
+
+        // 遍历原始消息，提取额外的系统信息并收集非系统消息
+        if (messages != null) {
+            for (Map<String, String> msg : messages) {
+                String role = msg.get("role");
+                String content = msg.get("content");
+                if ("system".equals(role)) {
+                    // 如果是其他系统消息（如实时快照），追加到基础指令之后
+                    if (content != null && !content.contains("System Intelligence Brain")) {
+                        systemContent.append("\n\n【补充系统上下文】：\n").append(content);
+                    }
+                } else {
+                    conversationMessages.add(msg);
+                }
+            }
+        }
+
+        List<Map<String, String>> finalMessages = new java.util.ArrayList<>();
+        
+        // 1. 添加合并后的唯一系统消息
+        Map<String, String> masterSys = new HashMap<>();
+        masterSys.put("role", "system");
+        masterSys.put("content", systemContent.toString());
+        finalMessages.add(masterSys);
+
+        // 2. 添加对话流消息
+        finalMessages.addAll(conversationMessages);
+
+        // 3. 兜底逻辑：如果没有有效对话消息，添加一个默认请求
+        if (conversationMessages.isEmpty()) {
             Map<String, String> usr = new HashMap<>();
             usr.put("role", "user");
-            usr.put("content", "请简要介绍你的功能。");
-            messages = Arrays.asList(sys, usr);
+            usr.put("content", "请以实验室管理助手的身份简要介绍本系统。");
+            finalMessages.add(usr);
         }
         
         try {
-            return chatViaOllama(useModel, messages);
+            return chatViaOllama(useModel, finalMessages);
         } catch (Exception e) {
             log.error("AI服务调用异常", e);
             throw new RuntimeException("处理AI请求时发生错误: " + e.getMessage(), e);
@@ -64,17 +114,31 @@ public class AiService {
             throw new RuntimeException("AI服务配置错误：base-url未配置");
         }
 
-        // 构造请求体
+        // 构造请求体并记录日志
         JSONObject body = new JSONObject();
         body.set("model", model);
         JSONArray msgs = new JSONArray();
+        log.info("--- AI Request Messages ---");
         for (Map<String, String> msg : messages) {
             JSONObject m = new JSONObject();
-            m.set("role", msg.getOrDefault("role", "user"));
-            m.set("content", msg.getOrDefault("content", ""));
+            String role = msg.getOrDefault("role", "user");
+            String content = msg.getOrDefault("content", "");
+            m.set("role", role);
+            m.set("content", content);
             msgs.add(m);
+            log.info("[{}] {}", role, content.substring(0, Math.min(content.length(), 200)).replace("\n", " "));
         }
+        log.info("---------------------------");
         body.set("messages", msgs);
+        
+        // 性能优化参数
+        JSONObject options = new JSONObject();
+        options.set("num_predict", 300);        // 限制输出token数，提升响应速度
+        options.set("temperature", 0.3);        // 降低随机性，提高输出稳定性
+        options.set("top_p", 0.9);              // 核采样
+        options.set("top_k", 40);               // Top-K采样
+        options.set("repeat_penalty", 1.1);     // 重复惩罚
+        body.set("options", options);
 
         String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
 
@@ -160,6 +224,44 @@ public class AiService {
         userMessage.put("role", "user");
         userMessage.put("content", prompt);
         
+        return chat(null, Arrays.asList(userMessage));
+    }
+
+    /**
+     * AI 生成公告内容
+     * @param topic 用户输入的主题/关键词
+     * @param audience 受众角色
+     * @param priority 优先级级别
+     * @return 包含标题和内容的AI回复
+     */
+    public String generateAnnouncement(String topic, String audience, String priority) {
+        String audienceLabel = "ALL".equals(audience) ? "全体实验室人员" : ("TEACHER".equals(audience) ? "各位老师" : "全体同学");
+        String priorityLabel = "URGENT".equals(priority) ? "紧急" : ("WARN".equals(priority) ? "重要" : "普通");
+
+        String prompt = String.format(
+            "你是一个专业的实验室行政管理员。请根据以下信息起草一份实验室公告：\n" +
+            "公告主题：%s\n" +
+            "目标受众：%s\n" +
+            "紧急程度：%s\n\n" +
+            "【输出规范(STRICT RULES)】：\n" +
+            "1. **禁止**输出任何开场白、解释性文字或结束语（如“希望这能帮到你”）。\n" +
+            "2. **禁止**生成带有方括号的占位符（如 [日期]、[联系方式] 等），请直接输出自然的完整句子。\n" +
+            "3. **禁止**在 CONTENT 中重复包含“紧急程度”、“受众”、“标题”等结构化元数据。\n" +
+            "4. **禁止**输出类似“### 核心内容 ###”或冗余的分段标识符。\n" +
+            "5. CONTENT 必须仅包含公告的具体正文内容，语气严谨专业。\n" +
+            "6. 必须且仅输出以下格式：\n\n" +
+            "TITLE: [公告标题]\n" +
+            "CONTENT: [公告正文]\n\n" +
+            "【输出示例(EXAMPLE)】：\n" +
+            "TITLE: 关于实验室卫生大扫除的通知\n" +
+            "CONTENT: 请全体同学于本周五下午2点参加实验室大扫除，注意安全防范。感谢您的配合与支持！",
+            topic, audienceLabel, priorityLabel
+        );
+
+        Map<String, String> userMessage = new HashMap<>();
+        userMessage.put("role", "user");
+        userMessage.put("content", prompt);
+
         return chat(null, Arrays.asList(userMessage));
     }
 }

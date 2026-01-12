@@ -22,6 +22,7 @@
               <template slot="title">
                 <i class="el-icon-s-tools"></i>
                 <span>基础管理</span>
+                <el-badge v-if="(warningCount > 0 && !warningsViewed) || (pendingApplicationCount > 0 && !applicationsViewed)" is-dot class="menu-badge" />
               </template>
               <el-menu-item index="dashboard">
                 <i class="el-icon-data-line"></i>
@@ -34,10 +35,12 @@
               <el-menu-item index="inventory">
                 <i class="el-icon-document"></i>
                 <span>库存查看</span>
+                <el-badge v-if="warningCount > 0 && !warningsViewed" :value="warningCount" class="menu-badge" />
               </el-menu-item>
               <el-menu-item index="applications">
                 <i class="el-icon-s-order"></i>
                 <span>申请记录</span>
+                <el-badge v-if="pendingApplicationCount > 0 && !applicationsViewed" :value="pendingApplicationCount" class="menu-badge" />
               </el-menu-item>
               <el-menu-item index="category">
                 <i class="el-icon-folder"></i>
@@ -260,15 +263,31 @@
             <el-card>
               <div slot="header">
                 <span>库存查看</span>
-                <el-input
-                  v-model="searchName"
-                  placeholder="输入试剂名称搜索"
-                  style="width: 300px; float: right;"
-                  @change="loadInventory"
-                  clearable
-                >
-                  <el-button slot="append" icon="el-icon-search" @click="loadInventory"></el-button>
-                </el-input>
+                <div style="float: right; display: flex; gap: 10px; align-items: center;">
+                  <el-select v-model="adminFilterStatus" @change="handleAdminFilterChange" size="small" placeholder="状态" style="width: 120px;" clearable>
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="正常" value="NORMAL"></el-option>
+                    <el-option label="库存不足" value="LOW"></el-option>
+                    <el-option label="即将过期" value="EXPIRING"></el-option>
+                    <el-option label="已过期" value="EXPIRED"></el-option>
+                  </el-select>
+                  <el-select v-model="adminSortField" @change="handleAdminFilterChange" size="small" placeholder="排序方式" style="width: 140px;" clearable>
+                    <el-option label="更新时间" value="update_time"></el-option>
+                    <el-option label="有效期" value="expiry_date"></el-option>
+                    <el-option label="库存数量" value="quantity"></el-option>
+                    <el-option label="预警阈值" value="warning_threshold"></el-option>
+                  </el-select>
+                  <el-input
+                    v-model="searchName"
+                    placeholder="输入试剂名称搜索"
+                    style="width: 200px;"
+                    @change="loadInventory"
+                    size="small"
+                    clearable
+                  >
+                    <el-button slot="append" icon="el-icon-search" @click="loadInventory"></el-button>
+                  </el-input>
+                </div>
               </div>
               <el-table :data="inventoryList" border>
                 <el-table-column prop="reagentName" label="试剂名称"></el-table-column>
@@ -287,6 +306,16 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <el-pagination
+                @size-change="handleAdminSizeChange"
+                @current-change="handleAdminPageChange"
+                :current-page="adminPage"
+                :page-sizes="[10, 20, 50, 100]"
+                :page-size="adminPageSize"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="adminTotal"
+                style="margin-top: 20px; text-align: right;">
+              </el-pagination>
             </el-card>
           </div>
           
@@ -369,22 +398,41 @@
                 <el-tab-pane label="入库记录" name="in">
                   <el-table :data="stockInRecords" border>
                     <el-table-column prop="batchNo" label="批次号" width="150"></el-table-column>
+                    <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
                     <el-table-column prop="quantity" label="入库数量" width="100"></el-table-column>
                     <el-table-column prop="supplier" label="供应商" width="180"></el-table-column>
                     <el-table-column prop="operatorName" label="操作人" width="100"></el-table-column>
                     <el-table-column prop="createTime" label="入库时间" width="180"></el-table-column>
                     <el-table-column prop="remark" label="备注" min-width="200"></el-table-column>
                   </el-table>
+                  <el-pagination
+                    @current-change="handleStockInPageChange"
+                    :current-page="stockInPage"
+                    :page-size="stockInPageSize"
+                    layout="total, prev, pager, next"
+                    :total="stockInTotal"
+                    style="margin-top: 20px; text-align: right;"
+                  ></el-pagination>
                 </el-tab-pane>
                 <el-tab-pane label="出库记录" name="out">
                   <el-table :data="stockOutRecords" border>
+                    <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
+                    <el-table-column prop="batchNo" label="批次号" width="150"></el-table-column>
                     <el-table-column prop="quantity" label="出库数量" width="100"></el-table-column>
-                    <el-table-column prop="recipientName" label="领用人" width="100"></el-table-column>
+                    <el-table-column prop="recipientName" label="领用人" width="120"></el-table-column>
                     <el-table-column prop="operatorName" label="操作人" width="100"></el-table-column>
-                    <el-table-column prop="purpose" label="用途" min-width="200"></el-table-column>
                     <el-table-column prop="createTime" label="出库时间" width="180"></el-table-column>
+                    <el-table-column prop="purpose" label="用途" min-width="150"></el-table-column>
                     <el-table-column prop="remark" label="备注" min-width="150"></el-table-column>
                   </el-table>
+                  <el-pagination
+                    @current-change="handleStockOutPageChange"
+                    :current-page="stockOutPage"
+                    :page-size="stockOutPageSize"
+                    layout="total, prev, pager, next"
+                    :total="stockOutTotal"
+                    style="margin-top: 20px; text-align: right;"
+                  ></el-pagination>
                 </el-tab-pane>
               </el-tabs>
             </el-card>
@@ -395,8 +443,9 @@
             <el-row :gutter="20">
               <el-col :span="10">
                 <el-card>
-                  <div slot="header">
+                  <div slot="header" style="display: flex; justify-content: space-between; align-items: center;">
                     <span><i class="el-icon-edit"></i> 发布公告</span>
+                    <el-button type="text" icon="el-icon-magic-stick" @click="handleAiGenerateAnnouncement" :loading="announcementLoading">AI 助手生成</el-button>
                   </div>
                   <el-form :model="announcementForm" :rules="announcementRules" ref="announcementForm" label-width="80px">
                     <el-form-item label="标题" prop="title">
@@ -549,6 +598,7 @@ import { getCategoryList, addCategory, deleteCategory as delCategory, getLocatio
 import { getAnnouncements, createAnnouncement, deleteAnnouncement } from '@/api/announcement'
 import { getStockInList, getStockOutList } from '@/api/stock'
 import { exportInventory, exportStockIn, exportStockOut } from '@/api/export'
+import { generateAnnouncement as generateAiAnnouncement } from '@/api/ai'
 import ECharts from '@/components/ECharts.vue'
 import QrcodeManagement from '@/components/QrcodeManagement.vue'
 import LocationMap from '@/components/LocationMap.vue'
@@ -572,16 +622,30 @@ export default {
       userCount: 0,
       inventoryCount: 0,
       warningCount: 0,
+      warningsViewed: false,
       applicationCount: 0,
+      pendingApplicationCount: 0,
+      applicationsViewed: false,
       userList: [],
       inventoryList: [],
+      adminFilterStatus: '',
+      adminSortField: 'update_time',
+      adminPage: 1,
+      adminPageSize: 10,
+      adminTotal: 0,
       warningList: [],
       applicationList: [],
       categoryList: [],
       locationList: [],
       announcementList: [],
       stockInRecords: [],
+      stockInPage: 1,
+      stockInPageSize: 10,
+      stockInTotal: 0,
       stockOutRecords: [],
+      stockOutPage: 1,
+      stockOutPageSize: 10,
+      stockOutTotal: 0,
       recordTab: 'in',
       userDialogVisible: false,
       userDialogTitle: '添加用户',
@@ -653,8 +717,10 @@ export default {
         this.loadUsers()
       } else if (index === 'inventory') {
         this.loadInventory()
+        this.warningsViewed = true
       } else if (index === 'applications') {
         this.loadApplications()
+        this.applicationsViewed = true
       } else if (index === 'category') {
         this.loadCategories()
       } else if (index === 'location') {
@@ -679,11 +745,21 @@ export default {
         this.generateInventoryStatusChart(res.data)
       })
       getWarningList().then(res => {
-        this.warningList = res.data
-        this.warningCount = res.data.length
+        const list = res.data || []
+        if (list.length > this.warningCount) {
+          this.warningsViewed = false
+        }
+        this.warningList = list
+        this.warningCount = list.length
       })
       getAllApplications().then(res => {
-        this.applicationCount = res.data.length
+        const list = res.data || []
+        const pendingCount = list.filter(a => a.status === 'PENDING').length
+        if (pendingCount > this.pendingApplicationCount) {
+          this.applicationsViewed = false
+        }
+        this.applicationCount = list.length
+        this.pendingApplicationCount = pendingCount
         this.generateApplicationStatusChart(res.data)
         this.generateMonthlyTrendChart(res.data)
       })
@@ -696,13 +772,47 @@ export default {
       })
     },
     loadInventory() {
-      getInventoryList({ name: this.searchName }).then(res => {
-        this.inventoryList = res.data
+      const params = {
+        name: this.searchName,
+        page: this.adminPage,
+        size: this.adminPageSize
+      }
+      // 状态筛选（独立条件）
+      if (this.adminFilterStatus) {
+        params.status = this.adminFilterStatus
+      }
+      // 排序
+      if (this.adminSortField) {
+        params.sortField = this.adminSortField
+        params.sortOrder = 'DESC'
+      }
+      getInventoryList(params).then(res => {
+        if (res.data && res.data.records) {
+          this.inventoryList = res.data.records
+          this.adminTotal = res.data.total || 0
+        } else {
+          this.inventoryList = res.data || []
+          this.adminTotal = this.inventoryList.length
+        }
       })
+    },
+    handleAdminFilterChange() {
+      this.adminPage = 1
+      this.loadInventory()
+    },
+    handleAdminSizeChange(val) {
+      this.adminPageSize = val
+      this.adminPage = 1
+      this.loadInventory()
+    },
+    handleAdminPageChange(val) {
+      this.adminPage = val
+      this.loadInventory()
     },
     loadApplications() {
       getAllApplications().then(res => {
         this.applicationList = res.data
+        this.pendingApplicationCount = res.data.filter(a => a.status === 'PENDING').length
       })
     },
     loadCategories() {
@@ -746,6 +856,51 @@ export default {
           this.announcementSubmitting = false
         })
       })
+    },
+    handleAiGenerateAnnouncement() {
+      this.$prompt('请输入公告的主题、关键词或简短要求', 'AI 助手', {
+        confirmButtonText: '生成内容',
+        cancelButtonText: '取消',
+        inputPlaceholder: '例：下周一上午10点实验室大扫除，请全员参加'
+      }).then(({ value }) => {
+        if (!value) return
+        this.announcementLoading = true
+        generateAiAnnouncement({
+          topic: value,
+          audience: this.announcementForm.audience,
+          priority: this.announcementForm.priority
+        }).then(res => {
+          let raw = res.data || ''
+          
+          // 预处理：移除一些小模型可能产生的 Markdown 代码块包裹或无用空白
+          raw = raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim()
+          
+          // 增强正则：支持 TITLE/标题 和 CONTENT/内容/正文
+          const titleMatch = raw.match(/(?:TITLE|标题)\s*[:：]\s*(.*)/i)
+          const contentMatch = raw.match(/(?:CONTENT|内容|正文|正文内容)\s*[:：]\s*([\s\S]*)/i)
+          
+          if (titleMatch && contentMatch) {
+            this.announcementForm.title = titleMatch[1].trim().replace(/^[*\\/\s]+|[*\\/\s]+$/g, '')
+            this.announcementForm.content = contentMatch[1].trim().replace(/^[*\\/\s]+|[*\\/\s]+$/g, '')
+            this.$message.success('公告内容已生成')
+          } else {
+            // 如果正则提取失败，尝试按行简单分割：第一行可能是标题，其余是内容
+            const lines = raw.split('\n').filter(l => l.trim())
+            if (lines.length >= 2) {
+              this.announcementForm.title = lines[0].replace(/^(TITLE|标题)[:：]\s*/i, '').trim().replace(/^[*\\/\s]+|[*\\/\s]+$/g, '')
+              this.announcementForm.content = lines.slice(1).join('\n').replace(/^(CONTENT|内容|正文|正文内容)[:：]\s*/i, '').trim().replace(/^[*\\/\s]+|[*\\/\s]+$/g, '')
+              this.$message.warning('格式不完全匹配，已尝试按行提取')
+            } else {
+              this.announcementForm.content = raw.replace(/^[*\\/\s]+|[*\\/\s]+$/g, '')
+              this.$message.warning('格式匹配受阻，已填入原始AI回复')
+            }
+          }
+        }).catch(err => {
+          this.$message.error('AI生成失败：' + (err.message || '请检查后端AI服务'))
+        }).finally(() => {
+          this.announcementLoading = false
+        })
+      }).catch(() => {})
     },
     resetAnnouncementForm() {
       this.$refs.announcementForm && this.$refs.announcementForm.resetFields()
@@ -853,7 +1008,7 @@ export default {
           this.$message.success('删除成功')
           this.loadUsers()
         })
-      })
+      }).catch(() => {})
     },
     showAddCategoryDialog() {
       this.categoryForm = {
@@ -878,7 +1033,7 @@ export default {
           this.$message.success('删除成功')
           this.loadCategories()
         })
-      })
+      }).catch(() => {})
     },
     showAddLocationDialog() {
       this.locationForm = {
@@ -905,15 +1060,31 @@ export default {
           this.$message.success('删除成功')
           this.loadLocations()
         })
-      })
+      }).catch(() => {})
     },
     loadStockRecords() {
-      getStockInList({ page: 1, size: 100 }).then(res => {
+      this.loadStockInRecords()
+      this.loadStockOutRecords()
+    },
+    loadStockInRecords() {
+      getStockInList({ page: this.stockInPage, size: this.stockInPageSize }).then(res => {
         this.stockInRecords = res.data.records || []
+        this.stockInTotal = res.data.total || 0
       })
-      getStockOutList({ page: 1, size: 100 }).then(res => {
+    },
+    loadStockOutRecords() {
+      getStockOutList({ page: this.stockOutPage, size: this.stockOutPageSize }).then(res => {
         this.stockOutRecords = res.data.records || []
+        this.stockOutTotal = res.data.total || 0
       })
+    },
+    handleStockInPageChange(val) {
+      this.stockInPage = val
+      this.loadStockInRecords()
+    },
+    handleStockOutPageChange(val) {
+      this.stockOutPage = val
+      this.loadStockOutRecords()
     },
     exportInventoryData() {
       exportInventory().then(blob => {
@@ -963,7 +1134,7 @@ export default {
       }).then(() => {
         this.$store.dispatch('logout')
         this.$router.push('/login')
-      })
+      }).catch(() => {})
     },
     
     // 生成用户角色分布饼图
@@ -1285,6 +1456,13 @@ export default {
 
 .el-card:hover {
   transform: translateY(-2px);
+}
+.menu-badge {
+  margin-left: 8px;
+}
+
+.menu-badge /deep/ .el-badge__content {
+  line-height: 18px;
 }
 </style>
 

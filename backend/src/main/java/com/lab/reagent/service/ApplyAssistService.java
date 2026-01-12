@@ -45,10 +45,14 @@ public class ApplyAssistService {
     }
 
     public ApplyOptimizeResponse optimize(ApplyOptimizeRequest req) {
-        // 候选库简要信息
-        List<Reagent> reagents = reagentService.list().stream().limit(300).collect(Collectors.toList());
+        // 优化候选库大小：只传递最相关的20条数据，减少AI处理量
+        List<Reagent> nearby = reagentService.list().stream()
+                .filter(r -> r.getName() != null && req.getName() != null && r.getName().toLowerCase().contains(req.getName().toLowerCase()))
+                .limit(20)  // 从300减少到20
+                .collect(Collectors.toList());
+        
         JSONArray candidate = new JSONArray();
-        for (Reagent r : reagents) {
+        for (Reagent r : nearby) {
             JSONObject o = new JSONObject();
             o.set("id", r.getId());
             o.set("name", r.getName());
@@ -58,16 +62,14 @@ public class ApplyAssistService {
             candidate.add(o);
         }
 
-        // 优化 Prompt，修复之前的格式错误，并明确要求 AI 给出独立的用量建议
-        String instruction = "你是实验室试剂申领辅助助手。\n" +
-                "根据用户输入的名称/用途/数量，结合候选试剂列表，输出一个JSON对象：\n" +
-                "{standardizedName, casNo, suggestedQuantity, unit, purposeTemplates[], warnings[], reasoning}\n" +
-                "要求：\n" +
-                "1) standardizedName命中系统常用名，若不确定选择最接近者；casNo尽量补全\n" +
-                "2) suggestedQuantity: 请分析该试剂在常规实验中的典型消耗量或包装规格。如果用户输入的数量（如1）看起来像是默认值或不符合常规（例如浓硫酸通常按500ml/瓶申请，昂贵试剂按mg/g申请），请给出更合理的建议值；如果用户输入合理则保留。\n" +
-                "3) purposeTemplates给出2-4条常用用途模板（简洁、专业）\n" +
-                "4) warnings包含用量安全、危险性或合规性的简要提示（可空）\n" +
-                "5) 严格返回JSON且字段齐全，不要输出多余文字。";
+        // 简化 Prompt 以适配小模型，并强调多个用途模板
+        String instruction = "你是实验室试剂申领助手。根据用户输入和候选试剂列表，返回严格的JSON格式。\n" +
+                "必须输出：{\"standardizedName\":\"试剂标准名称\",\"casNo\":\"CAS号\",\"suggestedQuantity\":数字,\"unit\":\"单位\",\"purposeTemplates\":[\"用途1\",\"用途2\",\"用途3\"],\"warnings\":[\"安全提示\"],\"reasoning\":\"简短理由\"}\n" +
+                "示例：{\"standardizedName\":\"无水乙醇\",\"casNo\":\"64-17-5\",\"suggestedQuantity\":1,\"unit\":\"瓶\",\"purposeTemplates\":[\"有机溶剂\",\"萃取提纯\",\"仪器清洗\"],\"warnings\":[\"易燃，远离火源\"],\"reasoning\":\"按瓶申领更合理\"}\n" +
+                "重要规则：\n" +
+                "1) purposeTemplates必须是数组，至少包含2-3个不同的常见用途\n" +
+                "2) 匹配系统试剂名称，常用试剂建议1-2瓶\n" +
+                "3) 只输出JSON，不要其他文字";
 
         JSONObject payload = new JSONObject();
         payload.set("input", new JSONObject()
@@ -91,21 +93,35 @@ public class ApplyAssistService {
         String reply = aiService.chat(req.getModel(), messages);
         // 增强 JSON 提取逻辑
         String jsonText = stripFence(reply);
+        log.info("AI原始响应: {}", reply);
+        log.info("提取的JSON: {}", jsonText);
 
         ApplyOptimizeResponse resp = new ApplyOptimizeResponse();
         try {
             JSONObject obj = JSONUtil.parseObj(jsonText);
-            resp.setStandardizedName(obj.getStr("standardizedName"));
-            resp.setCasNo(obj.getStr("casNo"));
-            resp.setSuggestedQuantity(obj.getDouble("suggestedQuantity"));
-            resp.setUnit(Optional.ofNullable(obj.getStr("unit")).orElse(nvl(req.getUnit())));
+            
+            // 安全提取每个字段，提供默认值
+            resp.setStandardizedName(obj.getStr("standardizedName", nvl(req.getName())));
+            resp.setCasNo(obj.getStr("casNo", nvl(req.getCasNo())));
+            
+            Double suggestedQty = obj.getDouble("suggestedQuantity");
+            resp.setSuggestedQuantity(suggestedQty != null ? suggestedQty : req.getQuantity());
+            
+            resp.setUnit(obj.getStr("unit", nvl(req.getUnit())));
+            
             JSONArray pts = obj.getJSONArray("purposeTemplates");
-            resp.setPurposeTemplates(pts == null ? Collections.emptyList() : pts.stream().map(String::valueOf).collect(Collectors.toList()));
+            resp.setPurposeTemplates(pts == null ? Collections.emptyList() : 
+                pts.stream().map(String::valueOf).collect(Collectors.toList()));
+            
             JSONArray warns = obj.getJSONArray("warnings");
-            resp.setWarnings(warns == null ? Collections.emptyList() : warns.stream().map(String::valueOf).collect(Collectors.toList()));
-            resp.setReasoning(obj.getStr("reasoning"));
+            resp.setWarnings(warns == null ? Collections.emptyList() : 
+                warns.stream().map(String::valueOf).collect(Collectors.toList()));
+            
+            resp.setReasoning(obj.getStr("reasoning", "AI推荐"));
+            
+            log.info("JSON解析成功");
         } catch (Exception e) {
-            log.warn("AI申领优化解析失败，返回原文: {}", reply);
+            log.error("AI申领优化解析失败，原始响应: {}, 错误: {}", reply, e.getMessage());
             // 兜底：直接回填输入
             resp.setStandardizedName(nvl(req.getName()));
             resp.setCasNo(nvl(req.getCasNo()));
@@ -114,8 +130,18 @@ public class ApplyAssistService {
             resp.setPurposeTemplates(Collections.emptyList());
             // 明确提示解析失败，方便调试
             resp.setWarnings(Collections.singletonList("系统提示：AI返回格式异常，已保留原输入。请尝试重试。"));
-            resp.setReasoning("JSON parse error: " + e.getMessage());
+            resp.setReasoning("JSON解析错误: " + e.getMessage());
         }
+        
+        // 如果 AI 仍然返回了超过 10 瓶/个的大额建议，进行最后的常识性兜底（除非确实是微量单位如mg）
+        if (resp.getUnit() != null && (resp.getUnit().contains("瓶") || resp.getUnit().contains("个"))) {
+            if (resp.getSuggestedQuantity() != null && resp.getSuggestedQuantity() > 10) {
+                resp.setSuggestedQuantity(1.0);
+                if (resp.getWarnings() == null) resp.setWarnings(new ArrayList<>());
+                resp.getWarnings().add("建议：单次申请量过大，系统已自动调整为 1.0 " + resp.getUnit());
+            }
+        }
+        
         return resp;
     }
 

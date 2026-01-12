@@ -175,7 +175,13 @@ public class ForecastingService {
             
             // 8. 解析AI返回的JSON
             String jsonContent = extractJsonFromResponse(aiResponse);
-            Map<String, Object> aiResult = JSON.parseObject(jsonContent, Map.class);
+            Map<String, Object> aiResult;
+            try {
+                aiResult = JSON.parseObject(jsonContent, Map.class);
+            } catch (Exception e) {
+                log.warn("解析AI返回的JSON失败，内容: {}", jsonContent);
+                aiResult = new HashMap<>();
+            }
             
             // 9. 创建预测记录
             ForecastingRecord forecast = new ForecastingRecord();
@@ -183,36 +189,42 @@ public class ForecastingService {
             forecast.setReagentName(reagent.getName());
             forecast.setCurrentStock(currentStock);
             
-            // 从AI结果中提取数据
-            if (aiResult.containsKey("predictedDepletionDate")) {
-                forecast.setPredictedDepletionDate(LocalDate.parse(aiResult.get("predictedDepletionDate").toString()));
+            // 安全地从AI结果中提取数据
+            LocalDate depDate = safeParseDate(aiResult.get("predictedDepletionDate"));
+            if (depDate == null) {
+                // 默认降级：基于平均日消耗计算
+                BigDecimal daily = averageDailyConsumption.compareTo(BigDecimal.ZERO) > 0 ? averageDailyConsumption : new BigDecimal("0.5");
+                int daysUntil = currentStock.divide(daily, 0, RoundingMode.UP).intValue();
+                depDate = LocalDate.now().plusDays(daysUntil);
             }
-            if (aiResult.containsKey("daysUntilDepletion")) {
-                forecast.setDaysUntilDepletion(Integer.parseInt(aiResult.get("daysUntilDepletion").toString()));
-            }
-            if (aiResult.containsKey("predictedDailyConsumption")) {
-                forecast.setAverageDailyConsumption(new BigDecimal(aiResult.get("predictedDailyConsumption").toString()));
-            } else {
-                forecast.setAverageDailyConsumption(averageDailyConsumption);
-            }
+            forecast.setPredictedDepletionDate(depDate);
             
-            Integer supplierLeadTime = reagent.getSupplierLeadTime();
-            if (supplierLeadTime == null) {
-                supplierLeadTime = 7;
+            Integer daysUntil = safeParseInt(aiResult.get("daysUntilDepletion"));
+            if (daysUntil == null) {
+                daysUntil = (int) ChronoUnit.DAYS.between(LocalDate.now(), depDate);
             }
+            forecast.setDaysUntilDepletion(daysUntil);
+            
+            BigDecimal predDaily = safeParseBigDecimal(aiResult.get("predictedDailyConsumption"));
+            forecast.setAverageDailyConsumption(predDaily != null ? predDaily : averageDailyConsumption);
+            
+            Integer supplierLeadTime = reagent.getSupplierLeadTime() != null ? reagent.getSupplierLeadTime() : 7;
             forecast.setSupplierLeadTime(supplierLeadTime);
             
-            if (aiResult.containsKey("recommendedOrderDate")) {
-                forecast.setRecommendedOrderDate(LocalDate.parse(aiResult.get("recommendedOrderDate").toString()));
+            LocalDate orderDate = safeParseDate(aiResult.get("recommendedOrderDate"));
+            if (orderDate == null) {
+                orderDate = depDate.minusDays(supplierLeadTime + 2);
             }
-            if (aiResult.containsKey("recommendedOrderQuantity")) {
-                forecast.setRecommendedOrderQuantity(new BigDecimal(aiResult.get("recommendedOrderQuantity").toString()));
+            forecast.setRecommendedOrderDate(orderDate);
+            
+            BigDecimal orderQty = safeParseBigDecimal(aiResult.get("recommendedOrderQuantity"));
+            if (orderQty == null) {
+                orderQty = forecast.getAverageDailyConsumption().multiply(new BigDecimal("30")).setScale(0, RoundingMode.UP);
             }
-            if (aiResult.containsKey("confidenceLevel")) {
-                forecast.setConfidenceLevel(new BigDecimal(aiResult.get("confidenceLevel").toString()));
-            } else {
-                forecast.setConfidenceLevel(calculateConfidence(stockOutRecords));
-            }
+            forecast.setRecommendedOrderQuantity(orderQty);
+
+            BigDecimal confidence = safeParseBigDecimal(aiResult.get("confidenceLevel"));
+            forecast.setConfidenceLevel(confidence != null ? confidence : calculateConfidence(stockOutRecords));
             
             forecast.setPredictionModel("AI_MODEL");
             
@@ -310,7 +322,13 @@ public class ForecastingService {
             
             String aiResponse = aiService.chat(null, messages);
             String jsonContent = extractJsonFromResponse(aiResponse);
-            Map<String, Object> aiResult = JSON.parseObject(jsonContent, Map.class);
+            Map<String, Object> aiResult;
+            try {
+                aiResult = JSON.parseObject(jsonContent, Map.class);
+            } catch (Exception e) {
+                log.warn("解析AI基础预测JSON失败: {}", jsonContent);
+                aiResult = new HashMap<>();
+            }
             
             // 创建预测记录
             ForecastingRecord forecast = new ForecastingRecord();
@@ -318,52 +336,32 @@ public class ForecastingService {
             forecast.setReagentName(reagent.getName());
             forecast.setCurrentStock(currentStock);
             
-            // 从AI结果中提取数据
-            if (aiResult.containsKey("predictedDepletionDate")) {
-                forecast.setPredictedDepletionDate(LocalDate.parse(aiResult.get("predictedDepletionDate").toString()));
-            } else {
-                // 默认预测：假设日均消耗0.5，计算耗尽日期
-                BigDecimal dailyConsumption = new BigDecimal("0.5");
-                int daysUntilDepletion = currentStock.divide(dailyConsumption, 0, RoundingMode.UP).intValue();
-                forecast.setPredictedDepletionDate(LocalDate.now().plusDays(daysUntilDepletion));
+            // 安全提取
+            LocalDate depDate = safeParseDate(aiResult.get("predictedDepletionDate"));
+            if (depDate == null) {
+                BigDecimal daily = new BigDecimal("0.5");
+                int days = currentStock.divide(daily, 0, RoundingMode.UP).intValue();
+                depDate = LocalDate.now().plusDays(days);
             }
+            forecast.setPredictedDepletionDate(depDate);
             
-            if (aiResult.containsKey("daysUntilDepletion")) {
-                forecast.setDaysUntilDepletion(Integer.parseInt(aiResult.get("daysUntilDepletion").toString()));
-            } else {
-                long days = ChronoUnit.DAYS.between(LocalDate.now(), forecast.getPredictedDepletionDate());
-                forecast.setDaysUntilDepletion((int) days);
-            }
+            Integer daysUntil = safeParseInt(aiResult.get("daysUntilDepletion"));
+            forecast.setDaysUntilDepletion(daysUntil != null ? daysUntil : (int) ChronoUnit.DAYS.between(LocalDate.now(), depDate));
             
-            if (aiResult.containsKey("predictedDailyConsumption")) {
-                forecast.setAverageDailyConsumption(new BigDecimal(aiResult.get("predictedDailyConsumption").toString()));
-            } else {
-                forecast.setAverageDailyConsumption(new BigDecimal("0.5"));
-            }
+            BigDecimal predDaily = safeParseBigDecimal(aiResult.get("predictedDailyConsumption"));
+            forecast.setAverageDailyConsumption(predDaily != null ? predDaily : new BigDecimal("0.5"));
             
-            Integer supplierLeadTime = reagent.getSupplierLeadTime();
-            if (supplierLeadTime == null) {
-                supplierLeadTime = 7;
-            }
-            forecast.setSupplierLeadTime(supplierLeadTime);
+            Integer leadTime = reagent.getSupplierLeadTime() != null ? reagent.getSupplierLeadTime() : 7;
+            forecast.setSupplierLeadTime(leadTime);
             
-            if (aiResult.containsKey("recommendedOrderDate")) {
-                forecast.setRecommendedOrderDate(LocalDate.parse(aiResult.get("recommendedOrderDate").toString()));
-            } else {
-                forecast.setRecommendedOrderDate(forecast.getPredictedDepletionDate().minusDays(supplierLeadTime + 3));
-            }
+            LocalDate orderDate = safeParseDate(aiResult.get("recommendedOrderDate"));
+            forecast.setRecommendedOrderDate(orderDate != null ? orderDate : depDate.minusDays(leadTime + 3));
             
-            if (aiResult.containsKey("recommendedOrderQuantity")) {
-                forecast.setRecommendedOrderQuantity(new BigDecimal(aiResult.get("recommendedOrderQuantity").toString()));
-            } else {
-                forecast.setRecommendedOrderQuantity(forecast.getAverageDailyConsumption().multiply(BigDecimal.valueOf(30)));
-            }
+            BigDecimal orderQty = safeParseBigDecimal(aiResult.get("recommendedOrderQuantity"));
+            forecast.setRecommendedOrderQuantity(orderQty != null ? orderQty : forecast.getAverageDailyConsumption().multiply(new BigDecimal("30")));
             
-            if (aiResult.containsKey("confidenceLevel")) {
-                forecast.setConfidenceLevel(new BigDecimal(aiResult.get("confidenceLevel").toString()));
-            } else {
-                forecast.setConfidenceLevel(BigDecimal.valueOf(40)); // 数据不足时置信度较低
-            }
+            BigDecimal conf = safeParseBigDecimal(aiResult.get("confidenceLevel"));
+            forecast.setConfidenceLevel(conf != null ? conf : new BigDecimal("40"));
             
             forecast.setPredictionModel("AI_MODEL_LIMITED_DATA");
             
@@ -535,11 +533,57 @@ public class ForecastingService {
         int jsonStart = trimmed.indexOf("{");
         int jsonEnd = trimmed.lastIndexOf("}");
         if (jsonStart >= 0 && jsonEnd > jsonStart) {
-            return trimmed.substring(jsonStart, jsonEnd + 1);
+            String potentialJson = trimmed.substring(jsonStart, jsonEnd + 1);
+            // 简单校验是否基本符合JSON结构
+            if (potentialJson.contains("\"") && potentialJson.contains(":")) {
+                return potentialJson;
+            }
         }
         
         // 如果都找不到，返回原内容
         return trimmed;
+    }
+
+    private LocalDate safeParseDate(Object obj) {
+        if (obj == null) return null;
+        try {
+            String str = obj.toString().trim();
+            if (str.isEmpty()) return null;
+            // 尝试匹配 YYYY-MM-DD
+            if (str.length() >= 10) {
+                return LocalDate.parse(str.substring(0, 10));
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("日期解析失败: {}", obj);
+            return null;
+        }
+    }
+
+    private Integer safeParseInt(Object obj) {
+        if (obj == null) return null;
+        try {
+            if (obj instanceof Number) {
+                return ((Number) obj).intValue();
+            }
+            return Integer.parseInt(obj.toString().trim());
+        } catch (Exception e) {
+            log.warn("整数解析失败: {}", obj);
+            return null;
+        }
+    }
+
+    private BigDecimal safeParseBigDecimal(Object obj) {
+        if (obj == null) return null;
+        try {
+            if (obj instanceof Number) {
+                return new BigDecimal(obj.toString());
+            }
+            return new BigDecimal(obj.toString().trim());
+        } catch (Exception e) {
+            log.warn("数字解析失败: {}", obj);
+            return null;
+        }
     }
     
     /**

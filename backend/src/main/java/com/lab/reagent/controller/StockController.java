@@ -8,6 +8,8 @@ import com.lab.reagent.entity.StockOutRecord;
 import com.lab.reagent.mapper.StockInRecordMapper;
 import com.lab.reagent.mapper.StockOutRecordMapper;
 import com.lab.reagent.service.StockService;
+import com.lab.reagent.vo.StockInVO;
+import com.lab.reagent.vo.StockOutVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -72,14 +74,11 @@ public class StockController {
      * 入库记录查询
      */
     @GetMapping("/in/list")
-    public Result<Page<StockInRecord>> inList(@RequestParam(defaultValue = "1") Integer page,
+    public Result<Page<StockInVO>> inList(@RequestParam(defaultValue = "1") Integer page,
                                                @RequestParam(defaultValue = "10") Integer size) {
         try {
-            Page<StockInRecord> pageInfo = new Page<>(page, size);
-            LambdaQueryWrapper<StockInRecord> wrapper = new LambdaQueryWrapper<>();
-            wrapper.orderByDesc(StockInRecord::getCreateTime);
-            
-            Page<StockInRecord> result = stockInRecordMapper.selectPage(pageInfo, wrapper);
+            Page<StockInVO> pageInfo = new Page<>(page, size);
+            Page<StockInVO> result = stockInRecordMapper.selectPageWithVO(pageInfo);
             return Result.success(result);
         } catch (Exception e) {
             return Result.error(e.getMessage());
@@ -90,14 +89,11 @@ public class StockController {
      * 出库记录查询
      */
     @GetMapping("/out/list")
-    public Result<Page<StockOutRecord>> outList(@RequestParam(defaultValue = "1") Integer page,
+    public Result<Page<StockOutVO>> outList(@RequestParam(defaultValue = "1") Integer page,
                                                  @RequestParam(defaultValue = "10") Integer size) {
         try {
-            Page<StockOutRecord> pageInfo = new Page<>(page, size);
-            LambdaQueryWrapper<StockOutRecord> wrapper = new LambdaQueryWrapper<>();
-            wrapper.orderByDesc(StockOutRecord::getCreateTime);
-            
-            Page<StockOutRecord> result = stockOutRecordMapper.selectPage(pageInfo, wrapper);
+            Page<StockOutVO> pageInfo = new Page<>(page, size);
+            Page<StockOutVO> result = stockOutRecordMapper.selectPageWithVO(pageInfo);
             return Result.success(result);
         } catch (Exception e) {
             return Result.error(e.getMessage());
