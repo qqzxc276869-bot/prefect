@@ -1,6 +1,7 @@
 package com.lab.reagent.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.reagent.entity.Inventory;
 import com.lab.reagent.vo.InventoryVO;
 import com.lab.reagent.vo.LocationStatisticsVO;
@@ -28,8 +29,42 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
             "LEFT JOIN storage_location l ON i.location_id = l.id " +
             "WHERE 1=1 " +
             "AND (#{name} IS NULL OR r.name LIKE CONCAT('%', #{name}, '%')) " +
+            "AND (#{status} IS NULL OR i.status = #{status}) " +
             "ORDER BY i.update_time DESC")
-    List<InventoryVO> selectInventoryList(@Param("name") String name);
+    List<InventoryVO> selectInventoryList(@Param("name") String name, @Param("status") String status);
+    
+    /**
+     * 分页查询库存列表（包含试剂和位置信息）
+     */
+    @Select("SELECT i.id, i.reagent_id, r.name AS reagent_name, r.cas_no, c.name AS category_name, " +
+            "r.specification, r.unit, i.batch_no, i.quantity, i.warning_threshold, i.expiry_date, " +
+            "l.full_location AS location_name, i.supplier, i.status, r.danger_level " +
+            "FROM inventory i " +
+            "LEFT JOIN reagent r ON i.reagent_id = r.id " +
+            "LEFT JOIN reagent_category c ON r.category_id = c.id " +
+            "LEFT JOIN storage_location l ON i.location_id = l.id " +
+            "WHERE 1=1 " +
+            "AND (#{name} IS NULL OR r.name LIKE CONCAT('%', #{name}, '%')) " +
+            "AND (#{status} IS NULL OR i.status = #{status}) " +
+            "ORDER BY i.update_time DESC")
+    Page<InventoryVO> selectInventoryPage(Page<InventoryVO> page, @Param("name") String name, @Param("status") String status);
+    
+    /**
+     * 动态排序查询库存列表（包含试剂和位置信息）
+     */
+    List<InventoryVO> selectInventoryListWithSort(@Param("name") String name, 
+                                                    @Param("status") String status,
+                                                    @Param("sortField") String sortField,
+                                                    @Param("sortOrder") String sortOrder);
+    
+    /**
+     * 分页+动态排序查询库存列表（包含试剂和位置信息）
+     */
+    Page<InventoryVO> selectInventoryPageWithSort(Page<InventoryVO> page,
+                                                   @Param("name") String name, 
+                                                   @Param("status") String status,
+                                                   @Param("sortField") String sortField,
+                                                   @Param("sortOrder") String sortOrder);
     
     /**
      * 查询预警列表
