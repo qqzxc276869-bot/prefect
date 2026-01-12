@@ -25,16 +25,9 @@ jwt:
   secret: reagent-management-secret-key-2024
   expiration: 86400000  # 24小时
 
-# AI配置（使用阿里云通义千问）
+# AI配置（使用本地Ollama部署）
 ai:
   enabled: true
-  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-  api-key: sk-d164b20942ab4a3fbc758d29f3858f02
-  model: qwen-plus-2025-07-28
-
-
-
-
-
-
-
+  base-url: http://localhost:11434/v1
+  api-key: ollama
+  model: qwen2.5:0.5b

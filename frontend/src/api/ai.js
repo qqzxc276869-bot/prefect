@@ -81,6 +81,15 @@ export function exportAnalyze(params) {
   })
 }
 
+// AI 生成公告
+export function generateAnnouncement(params) {
+  return request({
+    url: '/ai/announcement-generate',
+    method: 'post',
+    params: params
+  })
+}
+
 // 兼容旧版本的aiChat函数
 export function aiChat(data) {
   return chatWithAI(data.model, data.messages)

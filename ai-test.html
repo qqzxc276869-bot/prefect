@@ -155,7 +155,7 @@
                     this.chatLoading = true;
                     try {
                         const response = await axios.post('/api/ai/chat', {
-                            model: 'qwen-plus-2025-07-28',
+                            model: '',
                             messages: [
                                 { role: 'user', content: this.testMessage }
                             ]

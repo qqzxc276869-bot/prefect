@@ -24,7 +24,7 @@ public class AiReplenishController {
     @PostMapping("/suggest")
     public Result<List<Map<String, Object>>> suggest(@RequestBody Map<String, Object> params) {
         try {
-            String model = (String) params.getOrDefault("model", "qwen-plus-2025-07-28");
+            String model = (String) params.get("model");
             List<Map<String, Object>> suggestions = aiReplenishService.getReplenishSuggestions(model);
             return Result.success(suggestions);
         } catch (Exception e) {

@@ -132,7 +132,7 @@ export default {
         }))
         
         // 调用AI API
-        const response = await chatWithAI('qwen-plus-2025-07-28', messages)
+        const response = await chatWithAI('', messages)
         
         // 添加AI回复
         this.messages.push({

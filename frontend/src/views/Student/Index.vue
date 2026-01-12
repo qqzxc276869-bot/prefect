@@ -25,10 +25,12 @@
             <el-menu-item index="myApplications">
               <i class="el-icon-tickets"></i>
               <span>我的申请</span>
+              <el-badge v-if="unreadApplicationCount > 0 && !applicationsViewed" :value="unreadApplicationCount" class="menu-badge" />
             </el-menu-item>
             <el-menu-item index="announcements">
               <i class="el-icon-bell"></i>
               <span>系统公告</span>
+              <el-badge v-if="unreadAnnouncementCount > 0 && !announcementsViewed" is-dot class="menu-badge" />
             </el-menu-item>
             <el-menu-item index="feedback">
               <i class="el-icon-chat-line-square"></i>
@@ -46,25 +48,34 @@
             <el-card>
               <div slot="header">
                 <span>库存查询</span>
-                <el-button size="mini" type="primary" style="float: right; margin-left: 10px;" @click="handleSemanticSearch">AI智能搜</el-button>
-                <el-input
-                    v-model="searchName"
-                    placeholder="输入试剂名称搜索"
-                    style="width: 300px; float: right;"
-                    @change="loadInventory"
-                    clearable
-                >
-                  <el-button slot="append" icon="el-icon-search" @click="loadInventory"></el-button>
-                </el-input>
+                <div style="float: right; display: flex; gap: 10px; align-items: center;">
+                  <el-radio-group v-model="searchMode" size="mini">
+                    <el-radio-button label="normal">常规搜索</el-radio-button>
+                    <el-radio-button label="semantic">AI智能搜索</el-radio-button>
+                  </el-radio-group>
+                  <el-input
+                      v-model="searchName"
+                      :placeholder="searchMode === 'semantic' ? '输入试剂名称、CAS号或用途描述（如：酯化反应试剂）' : '输入试剂名称或CAS号搜索'"
+                      style="width: 400px;"
+                      @keyup.enter.native="handleSearch"
+                      clearable
+                  >
+                    <el-button slot="append" icon="el-icon-search" @click="handleSearch"></el-button>
+                  </el-input>
+                </div>
               </div>
-              <el-table :data="inventoryList" border>
-                <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
-                <el-table-column prop="specification" label="规格型号" width="120"></el-table-column>
-                <el-table-column prop="categoryName" label="分类" width="100"></el-table-column>
-                <el-table-column prop="quantity" label="库存数量" width="100"></el-table-column>
-                <el-table-column prop="unit" label="单位" width="80"></el-table-column>
-                <el-table-column prop="locationName" label="存放位置" width="180"></el-table-column>
-                <el-table-column prop="expiryDate" label="有效期" width="120"></el-table-column>
+              <el-alert v-if="searchMode === 'semantic' && showSemanticTip" type="info" :closable="false" style="margin-bottom: 12px;">
+                <span><i class="el-icon-info"></i> AI智能搜索已启用，支持用途描述（如"酯化反应试剂""氧化还原试剂"）自动匹配相关试剂</span>
+              </el-alert>
+              <el-table :data="displayInventoryList" border v-loading="searchLoading">
+                <el-table-column prop="reagentName" label="试剂名称" min-width="140"></el-table-column>
+                <el-table-column prop="casNo" label="CAS号" width="120"></el-table-column>
+                <el-table-column prop="specification" label="规格型号" width="110"></el-table-column>
+                <el-table-column prop="categoryName" label="分类" width="90"></el-table-column>
+                <el-table-column prop="quantity" label="库存数量" width="90"></el-table-column>
+                <el-table-column prop="unit" label="单位" width="70"></el-table-column>
+                <el-table-column prop="locationName" label="存放位置" min-width="150"></el-table-column>
+                <el-table-column prop="expiryDate" label="有效期" width="110"></el-table-column>
                 <el-table-column prop="status" label="状态" width="100">
                   <template slot-scope="scope">
                     <el-tag v-if="scope.row.status === 'NORMAL'" type="success">正常</el-tag>
@@ -79,6 +90,16 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <el-pagination
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+                :current-page="currentPage"
+                :page-sizes="[10, 20, 50, 100]"
+                :page-size="pageSize"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="total"
+                style="margin-top: 20px; text-align: right;"
+              ></el-pagination>
             </el-card>
           </div>
 
@@ -90,9 +111,9 @@
               </div>
               <el-form :model="applyForm" :rules="applyRules" ref="applyForm" label-width="100px">
                 <el-form-item label="试剂名称" prop="reagentId">
-                  <el-select v-model="applyForm.reagentId" placeholder="请选择试剂" style="width: 100%;">
+                  <el-select v-model="applyForm.reagentId" placeholder="请选择试剂" style="width: 100%;" filterable>
                     <el-option
-                        v-for="item in inventoryList"
+                        v-for="item in allReagentList"
                         :key="item.reagentId"
                         :label="item.reagentName"
                         :value="item.reagentId"
@@ -186,9 +207,9 @@
                         <el-tag v-else type="info">建议</el-tag>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="title" label="标题" width="150" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="content" label="内容" min-width="200" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="status" label="状态" width="100">
+                    <el-table-column prop="title" label="标题" width="140" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="content" label="内容" min-width="180" show-overflow-tooltip></el-table-column>
+                    <el-table-column prop="status" label="状态" width="90">
                       <template slot-scope="scope">
                         <el-tag v-if="scope.row.status === 'PENDING'" type="warning">待处理</el-tag>
                         <el-tag v-else-if="scope.row.status === 'PROCESSING'" type="primary">处理中</el-tag>
@@ -196,8 +217,12 @@
                         <el-tag v-else type="info">已关闭</el-tag>
                       </template>
                     </el-table-column>
-                    <el-table-column prop="handleRemark" label="处理备注" width="150" show-overflow-tooltip></el-table-column>
-                    <el-table-column prop="createTime" label="提交时间" width="180"></el-table-column>
+                    <el-table-column prop="createTime" label="提交时间" width="160"></el-table-column>
+                    <el-table-column label="操作" width="100" fixed="right">
+                      <template slot-scope="scope">
+                        <el-button size="mini" type="text" @click="viewFeedbackDetail(scope.row)">查看详情</el-button>
+                      </template>
+                    </el-table-column>
                   </el-table>
                 </el-card>
               </el-col>
@@ -225,7 +250,7 @@
 
           <el-form-item label="建议申请数量" v-if="aiOptData.suggestedQuantity">
             <span style="font-weight: bold; color: #409EFF; font-size: 16px;">
-              {{ aiOptData.suggestedQuantity }} {{ aiOptData.unit }}
+              {{ aiOptData.suggestedQuantity }} 瓶
             </span>
           </el-form-item>
 
@@ -260,6 +285,35 @@
       </span>
     </el-dialog>
 
+    <!-- 反馈详情对话框 -->
+    <el-dialog title="反馈详情" :visible.sync="feedbackDetailVisible" width="600px">
+      <el-descriptions :column="1" border v-if="currentFeedback">
+        <el-descriptions-item label="反馈类型">
+          <el-tag v-if="currentFeedback.feedbackType === 'REAGENT'" type="warning">试剂问题</el-tag>
+          <el-tag v-else-if="currentFeedback.feedbackType === 'SYSTEM'" type="danger">系统问题</el-tag>
+          <el-tag v-else type="info">建议</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="标题">{{ currentFeedback.title }}</el-descriptions-item>
+        <el-descriptions-item label="详细内容">
+          <div style="white-space: pre-wrap; line-height: 1.6;">{{ currentFeedback.content }}</div>
+        </el-descriptions-item>
+        <el-descriptions-item label="提交时间">{{ currentFeedback.createTime }}</el-descriptions-item>
+        <el-descriptions-item label="当前状态">
+          <el-tag v-if="currentFeedback.status === 'PENDING'" type="warning">待处理</el-tag>
+          <el-tag v-else-if="currentFeedback.status === 'PROCESSING'" type="primary">处理中</el-tag>
+          <el-tag v-else-if="currentFeedback.status === 'RESOLVED'" type="success">已解决</el-tag>
+          <el-tag v-else type="info">已关闭</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="处理备注" v-if="currentFeedback.handleRemark">
+          <div style="white-space: pre-wrap; line-height: 1.6;">{{ currentFeedback.handleRemark }}</div>
+        </el-descriptions-item>
+        <el-descriptions-item label="处理时间" v-if="currentFeedback.handleTime">{{ currentFeedback.handleTime }}</el-descriptions-item>
+      </el-descriptions>
+      <span slot="footer">
+        <el-button @click="feedbackDetailVisible = false">关闭</el-button>
+      </span>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -281,7 +335,16 @@ export default {
       activeMenu: 'inventory',
       userInfo: this.$store.state.userInfo,
       searchName: '',
+      searchMode: 'normal',
+      searchLoading: false,
+      showSemanticTip: true,
       inventoryList: [],
+      semanticMatchedList: [],
+      // 分页相关
+      currentPage: 1,
+      pageSize: 10,
+      total: 0,
+      allReagentList: [], // 所有试剂列表，用于申领选择
       applyForm: {
         reagentId: null,
         quantity: 1, // 默认为数字
@@ -305,25 +368,44 @@ export default {
         content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
       },
       myFeedbackList: [],
+      // 消息提醒相关
+      unreadApplicationCount: 0,
+      applicationsViewed: false,
+      unreadAnnouncementCount: 0,
+      announcementsViewed: false,
       // AI优化相关
       aiOptDialogVisible: false,
       aiOptData: {},
-      selectedPurposeTemplate: ''
+      selectedPurposeTemplate: '',
+      // 反馈详情相关
+      feedbackDetailVisible: false,
+      currentFeedback: null
+    }
+  },
+  computed: {
+    displayInventoryList() {
+      return this.searchMode === 'semantic' && this.semanticMatchedList.length > 0
+        ? this.semanticMatchedList
+        : this.inventoryList
     }
   },
   mounted() {
     this.loadInventory()
+    this.loadAllReagents()
     this.loadAnnouncements()
+    this.loadMyApplications()
   },
   methods: {
     handleMenuSelect(index) {
       this.activeMenu = index
-      if (index === 'myApplications') {
+      if (index === 'apply') {
+        this.loadAllReagents()
+      } else if (index === 'myApplications') {
         this.loadMyApplications()
-      } else if (index === 'inventory' || index === 'apply') {
-        this.loadInventory()
+        this.applicationsViewed = true
       } else if (index === 'announcements') {
         this.loadAnnouncements()
+        this.announcementsViewed = true
       } else if (index === 'feedback') {
         this.loadMyFeedback()
       } else if (index === 'ai-assistant') {
@@ -331,26 +413,126 @@ export default {
       }
     },
     loadInventory() {
-      getInventoryList({ name: this.searchName }).then(res => {
-        this.inventoryList = res.data
+      this.searchLoading = true
+      const params = {
+        name: this.searchName,
+        page: this.currentPage,
+        size: this.pageSize,
+        sortField: 'update_time',
+        sortOrder: 'DESC'
+      }
+      getInventoryList(params).then(res => {
+        if (res.data && res.data.records) {
+          this.inventoryList = res.data.records
+          this.total = res.data.total || 0
+        } else {
+          this.inventoryList = res.data || []
+          this.total = this.inventoryList.length
+        }
+        this.semanticMatchedList = []
+      }).finally(() => {
+        this.searchLoading = false
       })
+    },
+    loadAllReagents() {
+      // 加载所有库存记录并根据试剂ID去重，确保下拉框只显示唯一的试剂名称
+      getInventoryList({ 
+        name: '',
+        page: 1,
+        size: 10000 
+      }).then(res => {
+        const list = res.data && res.data.records ? res.data.records : (res.data || [])
+        // 使用 Map 根据 reagentId 去重
+        const uniqueMap = new Map()
+        list.forEach(item => {
+          if (!uniqueMap.has(item.reagentId)) {
+            uniqueMap.set(item.reagentId, item)
+          }
+        })
+        this.allReagentList = Array.from(uniqueMap.values())
+      })
+    },
+    handleSizeChange(val) {
+      this.pageSize = val
+      this.currentPage = 1
+      this.loadInventory()
+    },
+    handleCurrentChange(val) {
+      this.currentPage = val
+      this.loadInventory()
+    },
+    handleSearch() {
+      if (this.searchMode === 'semantic') {
+        this.handleSemanticSearch()
+      } else {
+        this.loadInventory()
+      }
     },
     handleSemanticSearch() {
       if (!this.searchName) {
-        this.$message.warning('请输入要搜索的关键词')
+        this.$message.warning('请输入要搜索的关键词或用途描述')
         return
       }
-      semanticSearch({ query: this.searchName, topK: 8, model: 'qwen-plus-2025-07-28' }).then(res => {
-        const items = res.data || []
-        if (!items.length) {
-          this.$message.info('未找到更好的智能建议，已使用常规搜索')
+      
+      this.searchLoading = true
+      semanticSearch({ query: this.searchName, topK: 10, model: '' }).then(res => {
+        const aiResults = res.data || []
+        if (!aiResults.length) {
+          this.$message.info('未找到匹配的试剂，切换到常规搜索')
+          this.searchMode = 'normal'
           this.loadInventory()
           return
         }
-        const names = items.map(i => `${i.name}${i.casNo ? '（' + i.casNo + '）' : ''}${i.reason ? ' - ' + i.reason : ''}`)
-        this.$alert(names.join('\n'), 'AI智能推荐', { confirmButtonText: '确定' })
+        
+        // 获取完整库存列表用于匹配
+        getInventoryList({}).then(inventoryRes => {
+          const allInventory = inventoryRes.data || []
+          const matched = []
+          
+          // 根据AI返回的试剂名称和CAS号匹配库存
+          aiResults.forEach(aiItem => {
+            const matchedItems = allInventory.filter(inv => {
+              const nameMatch = inv.reagentName && aiItem.name && 
+                (inv.reagentName.toLowerCase().includes(aiItem.name.toLowerCase()) || 
+                 aiItem.name.toLowerCase().includes(inv.reagentName.toLowerCase()))
+              const casMatch = aiItem.casNo && inv.casNo && 
+                (inv.casNo === aiItem.casNo || inv.casNo.includes(aiItem.casNo))
+              return nameMatch || casMatch
+            })
+            
+            if (matchedItems.length > 0) {
+              matched.push(...matchedItems)
+            }
+          })
+          
+          // 去重
+          const uniqueMatched = matched.filter((item, index, self) => 
+            index === self.findIndex(t => t.id === item.id)
+          )
+          
+          if (uniqueMatched.length > 0) {
+            this.semanticMatchedList = uniqueMatched
+            this.$message.success(`AI智能搜索找到 ${uniqueMatched.length} 个匹配的试剂`)
+          } else {
+            // 如果没有匹配到库存，显示AI推荐列表
+            const recommendations = aiResults.map(i => 
+              `${i.name}${i.casNo ? ' (CAS: ' + i.casNo + ')' : ''}${i.reason ? ' - ' + i.reason : ''}`
+            ).join('\n')
+            this.$alert(
+              `AI推荐以下试剂，但库存中暂无：\n\n${recommendations}\n\n建议联系管理员添加相关试剂。`,
+              'AI搜索结果',
+              { confirmButtonText: '知道了', type: 'info' }
+            )
+            this.semanticMatchedList = []
+          }
+        }).catch(() => {
+          this.$message.error('获取库存数据失败')
+        })
       }).catch(err => {
         this.$message.error('AI智能搜索失败：' + (err.message || ''))
+        this.searchMode = 'normal'
+      }).finally(() => {
+        this.searchLoading = false
       })
     },
     showApplyDialog(row) {
@@ -368,7 +550,7 @@ export default {
       })
     },
     handleApplyOptimize() {
-      const selected = this.inventoryList.find(x => x.reagentId === this.applyForm.reagentId)
+      const selected = this.allReagentList.find(x => x.reagentId === this.applyForm.reagentId)
       if (!selected) {
         this.$message.warning('请先选择一种试剂');
         return;
@@ -389,7 +571,7 @@ export default {
         quantity: this.applyForm.quantity,
         unit,
         purpose: this.applyForm.purpose,
-        model: 'qwen-plus-2025-07-28'
+        model: ''
       }).then(res => {
         loading.close();
         const data = res.data || {}
@@ -402,6 +584,7 @@ export default {
         }
 
         this.aiOptData = data
+        
         // 默认选中第一个模板，如果没有则为空
         if (data.purposeTemplates && data.purposeTemplates.length) {
           this.selectedPurposeTemplate = data.purposeTemplates[0]
@@ -433,12 +616,23 @@ export default {
     },
     loadMyApplications() {
       getMyApplications().then(res => {
-        this.myApplicationList = res.data
+        const list = res.data || []
+        const currentUnread = list.filter(a => a.status === 'APPROVED' || a.status === 'REJECTED').length
+        if (currentUnread > this.unreadApplicationCount) {
+          this.applicationsViewed = false
+        }
+        this.myApplicationList = list
+        this.unreadApplicationCount = currentUnread
       })
     },
     loadAnnouncements() {
       getAnnouncements({ role: 'STUDENT' }).then(res => {
-        this.announcementList = res.data || []
+        const list = res.data || []
+        if (list.length > this.unreadAnnouncementCount) {
+          this.announcementsViewed = false
+        }
+        this.announcementList = list
+        this.unreadAnnouncementCount = list.length
       })
     },
     getAudienceLabel(value) {
@@ -489,13 +683,17 @@ export default {
         this.myFeedbackList = res.data || []
       })
     },
+    viewFeedbackDetail(row) {
+      this.currentFeedback = row
+      this.feedbackDetailVisible = true
+    },
     handleLogout() {
       this.$confirm('确定要退出登录吗？', '提示', {
         type: 'warning'
       }).then(() => {
         this.$store.dispatch('logout')
         this.$router.push('/login')
-      })
+      }).catch(() => {})
     }
   }
 }
@@ -548,5 +746,12 @@ export default {
 
 .el-card:hover {
   transform: translateY(-2px);
+}
+.menu-badge {
+  margin-left: 8px;
+}
+
+.menu-badge /deep/ .el-badge__content {
+  line-height: 18px;
 }
 </style>

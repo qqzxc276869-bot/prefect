@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lab.reagent.mapper.InventoryMapper">
+    
+    <!-- 动态排序查询库存列表 -->
+    <select id="selectInventoryListWithSort" resultType="com.lab.reagent.vo.InventoryVO">
+        SELECT i.id, i.reagent_id, r.name AS reagent_name, r.cas_no, c.name AS category_name,
+               r.specification, r.unit, i.batch_no, i.quantity, i.warning_threshold, i.expiry_date,
+               l.full_location AS location_name, i.supplier, i.status, r.danger_level
+        FROM inventory i
+        LEFT JOIN reagent r ON i.reagent_id = r.id
+        LEFT JOIN reagent_category c ON r.category_id = c.id
+        LEFT JOIN storage_location l ON i.location_id = l.id
+        WHERE 1=1
+        <if test="name != null and name != ''">
+            AND r.name LIKE CONCAT('%', #{name}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            AND i.status = #{status}
+        </if>
+        ORDER BY
+        <choose>
+            <when test="sortField == 'expiry_date'">
+                i.expiry_date
+            </when>
+            <when test="sortField == 'quantity'">
+                i.quantity
+            </when>
+            <when test="sortField == 'warning_threshold'">
+                i.warning_threshold
+            </when>
+            <otherwise>
+                i.update_time
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="sortOrder == 'ASC'">
+                ASC
+            </when>
+            <otherwise>
+                DESC
+            </otherwise>
+        </choose>
+    </select>
+    
+    <!-- 分页+动态排序查询库存列表 -->
+    <select id="selectInventoryPageWithSort" resultType="com.lab.reagent.vo.InventoryVO">
+        SELECT i.id, i.reagent_id, r.name AS reagent_name, r.cas_no, c.name AS category_name,
+               r.specification, r.unit, i.batch_no, i.quantity, i.warning_threshold, i.expiry_date,
+               l.full_location AS location_name, i.supplier, i.status, r.danger_level
+        FROM inventory i
+        LEFT JOIN reagent r ON i.reagent_id = r.id
+        LEFT JOIN reagent_category c ON r.category_id = c.id
+        LEFT JOIN storage_location l ON i.location_id = l.id
+        WHERE 1=1
+        <if test="name != null and name != ''">
+            AND r.name LIKE CONCAT('%', #{name}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            AND i.status = #{status}
+        </if>
+        ORDER BY
+        <choose>
+            <when test="sortField == 'expiry_date'">
+                i.expiry_date
+            </when>
+            <when test="sortField == 'quantity'">
+                i.quantity
+            </when>
+            <when test="sortField == 'warning_threshold'">
+                i.warning_threshold
+            </when>
+            <otherwise>
+                i.update_time
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="sortOrder == 'ASC'">
+                ASC
+            </when>
+            <otherwise>
+                DESC
+            </otherwise>
+        </choose>
+    </select>
+    
+</mapper>

@@ -59,14 +59,18 @@ public class ApplyAssistService {
         }
 
         // 优化 Prompt，修复之前的格式错误，并明确要求 AI 给出独立的用量建议
+        // 优化 Prompt，增强用量建议的逻辑性
         String instruction = "你是实验室试剂申领辅助助手。\n" +
                 "根据用户输入的名称/用途/数量，结合候选试剂列表，输出一个JSON对象：\n" +
                 "{standardizedName, casNo, suggestedQuantity, unit, purposeTemplates[], warnings[], reasoning}\n" +
                 "要求：\n" +
                 "1) standardizedName命中系统常用名，若不确定选择最接近者；casNo尽量补全\n" +
-                "2) suggestedQuantity: 请分析该试剂在常规实验中的典型消耗量或包装规格。如果用户输入的数量（如1）看起来像是默认值或不符合常规（例如浓硫酸通常按500ml/瓶申请，昂贵试剂按mg/g申请），请给出更合理的建议值；如果用户输入合理则保留。\n" +
+                "2) suggestedQuantity 与 unit: 请给出【最符合实际科研逻辑】的建议。\n" +
+                "   - 重要逻辑：若由于单位模糊导致用户输入数值极大（如输入 500g 氢氧化钠），且该试剂标准规格为 500g/瓶，请将建议值优化为 1.0 且单位设为 '瓶'。\n" +
+                "   - 对普通溶剂/酸碱（乙醇、盐酸等），通常建议 1-2 瓶（500ml/瓶规格）；对贵重或微量试剂，保持 mg/g 单位并给出合理实验用量。\n" +
+                "   - 除非是大规模教学实验，否则单次申领超过 5 瓶通常属于异常，请在 warnings 中提示。\n" +
                 "3) purposeTemplates给出2-4条常用用途模板（简洁、专业）\n" +
-                "4) warnings包含用量安全、危险性或合规性的简要提示（可空）\n" +
+                "4) warnings 包含存放安全、使用配伍禁忌等提示\n" +
                 "5) 严格返回JSON且字段齐全，不要输出多余文字。";
 
         JSONObject payload = new JSONObject();
@@ -116,6 +120,16 @@ public class ApplyAssistService {
             resp.setWarnings(Collections.singletonList("系统提示：AI返回格式异常，已保留原输入。请尝试重试。"));
             resp.setReasoning("JSON parse error: " + e.getMessage());
         }
+        
+        // 如果 AI 仍然返回了超过 10 瓶/个的大额建议，进行最后的常识性兜底（除非确实是微量单位如mg）
+        if (resp.getUnit() != null && (resp.getUnit().contains("瓶") || resp.getUnit().contains("个"))) {
+            if (resp.getSuggestedQuantity() != null && resp.getSuggestedQuantity() > 10) {
+                resp.setSuggestedQuantity(1.0);
+                if (resp.getWarnings() == null) resp.setWarnings(new ArrayList<>());
+                resp.getWarnings().add("建议：单次申请量过大，系统已自动调整为 1.0 " + resp.getUnit());
+            }
+        }
+        
         return resp;
     }
 

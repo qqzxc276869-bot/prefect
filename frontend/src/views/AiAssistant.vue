@@ -151,6 +151,8 @@
 
 <script>
 import { chatWithAI } from '@/api/ai'
+import { getInventoryList, getWarningList } from '@/api/inventory'
+import { getAllApplications } from '@/api/application'
 
 export default {
   name: 'AiAssistantPage',
@@ -170,25 +172,25 @@ export default {
           key: 'inventory',
           label: '库存查询',
           icon: 'el-icon-document',
-          prompt: '请帮我查询当前库存情况，有哪些试剂需要补充？'
+          prompt: '请帮我查询当前库存整体情况，有哪些试剂需要重点关注？'
         },
         {
-          key: 'safety',
-          label: '安全操作',
-          icon: 'el-icon-warning',
-          prompt: '请告诉我处理易燃易爆试剂时需要注意哪些安全事项？'
+          key: 'guide',
+          label: '系统操作指导',
+          icon: 'el-icon-guide',
+          prompt: '我是系统管理员，请指导我如何进行基础数据的初始化配置？'
         },
         {
           key: 'storage',
-          label: '存储规范',
+          label: '存储规范查询',
           icon: 'el-icon-box',
-          prompt: '不同类别的试剂应该如何正确存储？'
+          prompt: '实验室中酸碱试剂和有机溶剂应该如何分类存放？'
         },
         {
           key: 'analysis',
-          label: '数据分析',
+          label: '数据分析建议',
           icon: 'el-icon-data-analysis',
-          prompt: '请分析一下最近的试剂使用趋势，有哪些需要注意的地方？'
+          prompt: '请基于当前系统数据，给我一些库存优化和管理的专业建议。'
         }
       ]
     }
@@ -220,16 +222,38 @@ export default {
       })
 
       try {
-        // 准备消息格式（不包含timestamp）
+        // 如果是询问数据分析或者是快捷操作，注入实时数据
+        let extraContext = ""
+        const dataKeywords = ['库存', '试剂', '列表', '清单', '多少', '问', '剩', '缺', '预警', '分析', '数据', '状态', '位置', '在哪', '查', '看', '找']
+        if (dataKeywords.some(key => messageText.toLowerCase().includes(key))) {
+          console.log('触发实时库存数据注入...')
+          extraContext = await this.fetchSystemStats()
+        }
+
+        // 准备消息格式
         const messagesForAPI = this.messages
-          .filter(msg => msg.role !== 'assistant' || msg.content !== this.messages[0].content)
-          .map(msg => ({
-            role: msg.role,
-            content: msg.content
-          }))
+          .filter(msg => {
+            if (msg.role === 'assistant' && msg.content === this.messages[0].content) return false
+            return true
+          })
+          .map((msg, index, array) => {
+            // 如果是最后一条用户消息，且存在实时上下文，则进行“上下文夹心”注入
+            if (index === array.length - 1 && extraContext) {
+              return {
+                role: msg.role,
+                content: `【实时数据快照 - 绝密事实参考】\n${extraContext}\n\n【用户当前提问】：\n${msg.content}`
+              }
+            }
+            return {
+              role: msg.role,
+              content: msg.content
+            }
+          })
+        
+        console.log('Final messages being sent to backend:', JSON.stringify(messagesForAPI, null, 2))
 
         // 调用AI API
-        const response = await chatWithAI('qwen-plus-2025-07-28', messagesForAPI)
+        const response = await chatWithAI('', messagesForAPI)
 
         // 添加AI回复
         this.messages.push({
@@ -295,44 +319,78 @@ export default {
         this.quickActions = [
           {
             key: 'apply',
-            label: '申领辅助',
+            label: '申领流程指导',
             icon: 'el-icon-edit',
-            prompt: '请帮我检查我的试剂申领理由是否充分？'
+            prompt: '我想领用某种试剂，请告诉我系统的申请审批流程是怎样的？'
           },
           {
             key: 'inventory',
-            label: '库存查询',
-            icon: 'el-icon-document',
-            prompt: '请帮我查询可用的试剂库存'
+            label: '库存查询帮助',
+            icon: 'el-icon-search',
+            prompt: '我该如何在系统中查找我需要的试剂？'
           },
           {
             key: 'safety',
-            label: '安全提示',
+            label: '安全操作规程',
             icon: 'el-icon-warning',
-            prompt: '提醒我在处理易燃试剂时需要注意的事项'
+            prompt: '在实验室领用硫酸等腐蚀性试剂时，有哪些必须遵守的安全规程？'
           }
         ]
       } else if (userInfo.role === 'TEACHER') {
         this.quickActions = [
           {
             key: 'approval',
-            label: '审批建议',
+            label: '审批规范',
             icon: 'el-icon-check',
-            prompt: '请给出处理试剂申领审批的建议'
+            prompt: '作为库房老师，我应该依据哪些原则来审核学生的试剂申领申请？'
+          },
+          {
+            key: 'stock_op',
+            label: '入库出库指导',
+            icon: 'el-icon-refresh',
+            prompt: '请告诉我如何在系统中执行入库和出库操作，特别是如何利用先进先出原则？'
           },
           {
             key: 'inventory',
-            label: '库存分析',
+            label: '库存预警处理',
             icon: 'el-icon-data-analysis',
-            prompt: '请帮我分析当前库存是否存在风险点'
-          },
-          {
-            key: 'safety',
-            label: '安全巡检',
-            icon: 'el-icon-view',
-            prompt: '提醒我进行本周的实验室安全巡检要点'
+            prompt: '系统出现了库存预警（红色点），我该如何查看并处理这些预警试剂？'
           }
         ]
+      }
+    },
+
+    async fetchSystemStats() {
+      // 动态获取系统汇总数据以辅助AI分析
+      try {
+        const [invRes, warnRes, appRes] = await Promise.all([
+          getInventoryList({}),
+          getWarningList(),
+          getAllApplications()
+        ])
+        
+        const invData = invRes.data || []
+        const warnData = warnRes.data || []
+        const appData = appRes.data || []
+
+        const stats = {
+          totalKind: invData.length,
+          warningCount: warnData.length,
+          pendingApps: appData.filter(a => a.status === 'PENDING').length,
+          lowStock: warnData.filter(i => i.status === 'LOW').length,
+          expired: warnData.filter(i => i.status === 'EXPIRED').length,
+          // 提取前30种试剂的库存概览，修正字段名: quantity, locationName
+          reagentDetails: invData.slice(0, 30).map(i => ` - ${i.reagentName}: ${i.quantity} ${i.unit || '瓶'} (存储: ${i.locationName || '未指定'}, 状态: ${i.status})`).join('\n')
+        }
+        
+        return `【实验室当前真实库存快照】：
+1. 总体统计：共有 ${stats.totalKind} 种试剂。
+2. 异常预警：${stats.warningCount} 条（其中 ${stats.lowStock} 瓶库存不足，${stats.expired} 瓶已过期）。
+3. 待办流程：${stats.pendingApps} 份申领申请待审批。
+4. 详细清单示例（前30条）：\n${stats.reagentDetails}${invData.length > 30 ? '\n (更多试剂请查阅系统列表)' : ''}`;
+      } catch (e) {
+        console.error("AI Context Fetch Error:", e)
+        return "【错误】系统当前无法连接实时数据库，请告知用户手动查看库存列表。"
       }
     },
 
@@ -346,8 +404,13 @@ export default {
 
     formatMessage(content) {
       if (!content) return ''
-      // 简单的格式化：将换行转换为<br>
-      return content.replace(/\n/g, '<br>')
+      // 增强格式化：处理加粗、换行、列表
+      let html = content
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n\s*•\s*(.*)/g, '<br>• $1')
+        .replace(/\n/g, '<br>')
+      
+      return html
     },
 
     formatTime(timestamp) {
@@ -373,7 +436,6 @@ export default {
         event.preventDefault()
         this.sendMessage()
       }
-      // Shift+Enter 允许默认行为（换行）
     }
   }
 }
@@ -780,5 +842,3 @@ export default {
   background: #cbd5e1;
 }
 </style>
-
-
