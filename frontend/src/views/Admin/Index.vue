@@ -198,6 +198,7 @@
                       <template slot-scope="scope">
                         <el-tag v-if="scope.row.status === 'LOW'" type="warning">库存不足</el-tag>
                         <el-tag v-else-if="scope.row.status === 'EXPIRING'" type="warning">即将过期</el-tag>
+                        <el-tag v-else-if="scope.row.status === 'DISCARDED'" type="info" effect="dark">已废弃</el-tag>
                         <el-tag v-else type="danger">已过期</el-tag>
                       </template>
                     </el-table-column>
@@ -270,6 +271,7 @@
                     <el-option label="库存不足" value="LOW"></el-option>
                     <el-option label="即将过期" value="EXPIRING"></el-option>
                     <el-option label="已过期" value="EXPIRED"></el-option>
+                    <el-option label="已废弃" value="DISCARDED"></el-option>
                   </el-select>
                   <el-select v-model="adminSortField" @change="handleAdminFilterChange" size="small" placeholder="排序方式" style="width: 140px;" clearable>
                     <el-option label="更新时间" value="update_time"></el-option>
@@ -302,6 +304,7 @@
                     <el-tag v-if="scope.row.status === 'NORMAL'" type="success">正常</el-tag>
                     <el-tag v-else-if="scope.row.status === 'LOW'" type="warning">库存不足</el-tag>
                     <el-tag v-else-if="scope.row.status === 'EXPIRING'" type="warning">即将过期</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'DISCARDED'" type="info" effect="dark">已废弃</el-tag>
                     <el-tag v-else type="danger">已过期</el-tag>
                   </template>
                 </el-table-column>

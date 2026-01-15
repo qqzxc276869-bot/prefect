@@ -18,6 +18,15 @@ export function stockOut(data) {
   })
 }
 
+// 废弃处理
+export function discardStock(data) {
+  return request({
+    url: '/stock/discard',
+    method: 'post',
+    data
+  })
+}
+
 // 入库记录查询
 export function getStockInList(params) {
   return request({

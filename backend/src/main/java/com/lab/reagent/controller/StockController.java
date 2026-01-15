@@ -31,6 +31,18 @@ public class StockController {
     
     @Autowired
     private StockOutRecordMapper stockOutRecordMapper;
+
+    @Autowired
+    private com.lab.reagent.service.ReagentService reagentService;
+
+    @Autowired
+    private com.lab.reagent.service.WasteRecordService wasteRecordService;
+
+    @Autowired
+    private com.lab.reagent.service.InventoryService inventoryService;
+
+    @Autowired
+    private com.lab.reagent.mapper.InventoryMapper inventoryMapper;
     
     /**
      * 入库
@@ -67,6 +79,53 @@ public class StockController {
             return Result.success("出库成功");
         } catch (Exception e) {
             return Result.error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 废弃处理
+     */
+    @PostMapping("/discard")
+    public Result<String> discard(@RequestBody com.lab.reagent.dto.DiscardDTO dto,
+                                  @RequestHeader("userId") Long userId,
+                                  @RequestHeader("realName") String realName) {
+        try {
+            com.lab.reagent.entity.Inventory inventory = inventoryMapper.selectById(dto.getInventoryId());
+            if (inventory == null) {
+                return Result.error("库存不存在");
+            }
+            if (inventory.getQuantity().compareTo(dto.getQuantity()) < 0) {
+                return Result.error("废弃数量不能大于当前库存");
+            }
+            
+            String decodedName = URLDecoder.decode(realName, StandardCharsets.UTF_8.name());
+
+            // 1. 创建废弃记录
+            com.lab.reagent.entity.WasteRecord wasteRecord = new com.lab.reagent.entity.WasteRecord();
+            wasteRecord.setReagentId(inventory.getReagentId());
+            com.lab.reagent.entity.Reagent r = reagentService.getById(inventory.getReagentId());
+            wasteRecord.setReagentName(r != null ? r.getName() : "");
+            wasteRecord.setInventoryId(inventory.getId());
+            wasteRecord.setQuantity(dto.getQuantity());
+            wasteRecord.setMethod(dto.getMethod());
+            wasteRecord.setOperatorId(userId);
+            wasteRecord.setOperatorName(decodedName);
+            wasteRecord.setRemark(dto.getRemark());
+            wasteRecord.setCreateTime(java.time.LocalDateTime.now());
+            wasteRecordService.save(wasteRecord);
+
+            // 2. 扣减库存
+            inventory.setQuantity(inventory.getQuantity().subtract(dto.getQuantity()));
+            if (inventory.getQuantity().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                inventory.setQuantity(java.math.BigDecimal.ZERO); // Ensure it's exactly 0
+                inventory.setStatus("DISCARDED");
+            }
+            inventoryService.updateById(inventory);
+
+            return Result.success("废弃处理成功");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Result.error("处理失败: " + e.getMessage());
         }
     }
     

@@ -132,6 +132,18 @@ public class InventoryService extends ServiceImpl<InventoryMapper, Inventory> {
             return;
         }
         
+        // 如果已经是废弃状态，不再更新
+        if ("DISCARDED".equals(inventory.getStatus())) {
+            return;
+        }
+        
+        // 如果库存归零，视为已废弃（针对自动扣减场景）
+        if (inventory.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            inventory.setStatus("DISCARDED");
+            this.updateById(inventory);
+            return;
+        }
+        
         String status = "NORMAL";
         
         // 检查库存是否不足

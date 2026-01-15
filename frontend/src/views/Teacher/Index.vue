@@ -74,6 +74,7 @@
                     <el-option label="库存不足" value="LOW"></el-option>
                     <el-option label="即将过期" value="EXPIRING"></el-option>
                     <el-option label="已过期" value="EXPIRED"></el-option>
+                    <el-option label="已废弃" value="DISCARDED"></el-option>
                   </el-select>
                   <el-select v-model="sortField" @change="handleFilterChange" size="small" placeholder="排序方式" style="width: 140px;" clearable>
                     <el-option label="更新时间" value="update_time"></el-option>
@@ -106,12 +107,21 @@
                     <el-tag v-if="scope.row.status === 'NORMAL'" type="success">正常</el-tag>
                     <el-tag v-else-if="scope.row.status === 'LOW'" type="warning">库存不足</el-tag>
                     <el-tag v-else-if="scope.row.status === 'EXPIRING'" type="warning">即将过期</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'DISCARDED'" type="info" effect="dark">已废弃</el-tag>
                     <el-tag v-else type="danger">已过期</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="100">
+                <el-table-column label="操作" width="180">
                   <template slot-scope="scope">
                     <el-button size="mini" @click="showThresholdDialog(scope.row)">设置预警</el-button>
+                    <el-button 
+                      v-if="scope.row.status === 'EXPIRED' || scope.row.status === 'EXPIRING'" 
+                      type="text" 
+                      size="small" 
+                      style="color: #F56C6C; margin-left: 8px;"
+                      @click="handleDiscard(scope.row)">
+                      废弃处理
+                    </el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -332,6 +342,7 @@
                 <el-tab-pane label="库存不足" name="LOW"></el-tab-pane>
                 <el-tab-pane label="试剂临期" name="EXPIRING"></el-tab-pane>
                 <el-tab-pane label="已过期" name="EXPIRED"></el-tab-pane>
+                <el-tab-pane label="已废弃" name="DISCARDED"></el-tab-pane>
               </el-tabs>
               <el-table :data="filteredWarningList" border>
                 <el-table-column prop="reagentName" label="试剂名称" width="150"></el-table-column>
@@ -344,6 +355,7 @@
                   <template slot-scope="scope">
                     <el-tag v-if="scope.row.status === 'LOW'" type="warning">库存不足</el-tag>
                     <el-tag v-else-if="scope.row.status === 'EXPIRING'" type="warning">即将过期</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'DISCARDED'" type="info" effect="dark">已废弃</el-tag>
                     <el-tag v-else type="danger">已过期</el-tag>
                   </template>
                 </el-table-column>
@@ -558,13 +570,44 @@
             <el-button type="success" @click="handleReviewFromPrecheck('APPROVED')">通过申请</el-button>
         </span>
     </el-dialog>
+
+    <!-- 废弃处理对话框 -->
+    <el-dialog title="废弃处理" :visible.sync="discardDialogVisible" width="500px">
+      <el-form label-width="100px">
+        <el-form-item label="试剂名称">
+          <span>{{ discardForm.reagentName }}</span>
+        </el-form-item>
+        <el-form-item label="当前库存">
+          <span>{{ discardForm.currentQuantity }}</span>
+        </el-form-item>
+        <el-form-item label="废弃数量">
+          <el-input-number v-model="discardForm.quantity" :min="0.01" :max="discardForm.currentQuantity" :step="0.1" controls-position="right"></el-input-number>
+        </el-form-item>
+        <el-form-item label="处理方式">
+          <el-select v-model="discardForm.method" placeholder="请选择处理方式">
+            <el-option label="专业回收" value="专业回收"></el-option>
+            <el-option label="无害化销毁" value="无害化销毁"></el-option>
+            <el-option label="稀释排放" value="稀释排放"></el-option>
+            <el-option label="退回供应商" value="退回供应商"></el-option>
+            <el-option label="其他" value="其他"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input type="textarea" v-model="discardForm.remark" rows="3"></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="discardDialogVisible = false">取 消</el-button>
+        <el-button type="danger" @click="submitDiscard">确认废弃</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import { getInventoryList, getWarningList, updateThreshold } from '@/api/inventory'
 import { getPendingApplications, getAllApplications, reviewApplication } from '@/api/application'
-import { stockIn, stockOut, getStockInList, getStockOutList } from '@/api/stock'
+import { stockIn, stockOut, getStockInList, getStockOutList, discardStock } from '@/api/stock'
 import { getReagentList } from '@/api/reagent'
 import { stockInHint, approvePrecheck } from '@/api/ai'
 import { getLocationList, getCategoryList } from '@/api/base'
@@ -671,6 +714,15 @@ export default {
         id: null,
         reagentName: '',
         warningThreshold: 10
+      },
+      discardDialogVisible: false,
+      discardForm: {
+        inventoryId: null,
+        reagentName: '',
+        currentQuantity: 0,
+        quantity: 0,
+        method: '',
+        remark: ''
       }
     }
   },
@@ -1161,6 +1213,28 @@ export default {
       if (this.currentApplication) {
         this.handleReview(this.currentApplication, status)
       }
+    },
+    handleDiscard(row) {
+      this.discardForm = {
+        inventoryId: row.id,
+        reagentName: row.reagentName,
+        currentQuantity: row.quantity,
+        quantity: row.quantity, // 默认全部废弃
+        method: '',
+        remark: ''
+      }
+      this.discardDialogVisible = true
+    },
+    submitDiscard() {
+      if (!this.discardForm.method) {
+        this.$message.warning('请选择处理方式')
+        return
+      }
+      discardStock(this.discardForm).then(() => {
+        this.$message.success('废弃处理成功')
+        this.discardDialogVisible = false
+        this.loadInventory()
+      })
     },
     showThresholdDialog(row) {
       this.thresholdForm = {

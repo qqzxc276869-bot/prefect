@@ -95,6 +95,7 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
             "r.specification, r.unit, i.batch_no, i.quantity, i.warning_threshold, i.expiry_date, " +
             "l.full_location AS location_name, i.supplier, r.danger_level, " +
             "CASE " +
+            "  WHEN i.status = 'DISCARDED' THEN 'DISCARDED' " +
             "  WHEN i.expiry_date IS NOT NULL AND i.expiry_date < CURDATE() THEN 'EXPIRED' " +
             "  WHEN i.expiry_date IS NOT NULL AND i.expiry_date < DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'EXPIRING' " +
             "  WHEN i.quantity <= i.warning_threshold THEN 'LOW' " +
@@ -105,11 +106,12 @@ public interface InventoryMapper extends BaseMapper<Inventory> {
             "LEFT JOIN reagent_category c ON r.category_id = c.id " +
             "LEFT JOIN storage_location l ON i.location_id = l.id " +
             "WHERE (CASE " +
+            "  WHEN i.status = 'DISCARDED' THEN 'DISCARDED' " +
             "  WHEN i.expiry_date IS NOT NULL AND i.expiry_date < CURDATE() THEN 'EXPIRED' " +
             "  WHEN i.expiry_date IS NOT NULL AND i.expiry_date < DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'EXPIRING' " +
             "  WHEN i.quantity <= i.warning_threshold THEN 'LOW' " +
             "  ELSE 'NORMAL' " +
-            "END) IN ('LOW', 'EXPIRING', 'EXPIRED') " +
+            "END) IN ('LOW', 'EXPIRING', 'EXPIRED', 'DISCARDED') " +
             "ORDER BY status, i.update_time DESC")
     List<InventoryVO> selectWarningList();
     

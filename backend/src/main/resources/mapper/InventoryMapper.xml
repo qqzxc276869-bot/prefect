@@ -9,6 +9,7 @@
                r.specification, r.unit, i.batch_no, i.quantity, i.warning_threshold, i.expiry_date,
                l.full_location AS location_name, i.supplier, r.danger_level,
                CASE
+                   WHEN i.status = 'DISCARDED' THEN 'DISCARDED'
                    WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; CURDATE() THEN 'EXPIRED'
                    WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'EXPIRING'
                    WHEN i.quantity &lt;= i.warning_threshold THEN 'LOW'
@@ -25,6 +26,7 @@
         <if test="status != null and status != ''">
             AND (
                 CASE
+                    WHEN i.status = 'DISCARDED' THEN 'DISCARDED'
                     WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; CURDATE() THEN 'EXPIRED'
                     WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'EXPIRING'
                     WHEN i.quantity &lt;= i.warning_threshold THEN 'LOW'
@@ -63,6 +65,7 @@
                r.specification, r.unit, i.batch_no, i.quantity, i.warning_threshold, i.expiry_date,
                l.full_location AS location_name, i.supplier, r.danger_level,
                CASE
+                   WHEN i.status = 'DISCARDED' THEN 'DISCARDED'
                    WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; CURDATE() THEN 'EXPIRED'
                    WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'EXPIRING'
                    WHEN i.quantity &lt;= i.warning_threshold THEN 'LOW'
@@ -79,6 +82,7 @@
         <if test="status != null and status != ''">
             AND (
                 CASE
+                    WHEN i.status = 'DISCARDED' THEN 'DISCARDED'
                     WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; CURDATE() THEN 'EXPIRED'
                     WHEN i.expiry_date IS NOT NULL AND i.expiry_date &lt; DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 'EXPIRING'
                     WHEN i.quantity &lt;= i.warning_threshold THEN 'LOW'
