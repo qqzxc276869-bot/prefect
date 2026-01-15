@@ -12,8 +12,10 @@ import cn.hutool.json.JSONUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -49,20 +51,34 @@ public class SemanticSearchService {
         }
         int k = (topK == null || topK <= 0 || topK > 20) ? 8 : topK;
 
-        // 性能优化：减少候选数量，提升响应速度
+        // 性能与精度优化：不仅仅取前50条，而是先进行关键词预筛选
         List<Reagent> all = reagentService.list();
-        List<Reagent> candidates = all.stream()
-                .limit(50)  // 从300减少到50，大幅提升速度
+        String lowQuery = query.toLowerCase();
+        
+        // 1. 优先选出名称或CAS号匹配的
+        List<Reagent> keywordMatches = all.stream()
+                .filter(r -> (r.getName() != null && r.getName().toLowerCase().contains(lowQuery)) || 
+                             (r.getCasNo() != null && r.getCasNo().contains(query)))
+                .limit(30)
                 .collect(Collectors.toList());
+        
+        // 2. 如果不足50条，从剩余中补充（可以基于分类或描述，这里简单补充以保证多样性）
+        Set<Long> matchIds = keywordMatches.stream().map(Reagent::getId).collect(Collectors.toSet());
+        List<Reagent> supplements = all.stream()
+                .filter(r -> !matchIds.contains(r.getId()))
+                .limit(50 - keywordMatches.size())
+                .collect(Collectors.toList());
+        
+        List<Reagent> candidates = new ArrayList<>(keywordMatches);
+        candidates.addAll(supplements);
 
-        // 组装候选JSON，尽量精简
+        // 组装候选JSON
         JSONArray candidateArr = new JSONArray();
         for (Reagent r : candidates) {
             JSONObject obj = new JSONObject();
             obj.set("id", r.getId());
             obj.set("name", r.getName());
             obj.set("casNo", r.getCasNo());
-            // 去除specification字段，进一步减少数据量
             candidateArr.add(obj);
         }
 

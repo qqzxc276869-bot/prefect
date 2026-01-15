@@ -1,5 +1,6 @@
 package com.lab.reagent.service;
 
+import com.lab.reagent.dto.StockInDTO;
 import com.lab.reagent.entity.*;
 import com.lab.reagent.mapper.StockInRecordMapper;
 import com.lab.reagent.mapper.StockOutRecordMapper;
@@ -29,12 +30,36 @@ public class StockService {
     
     @Autowired
     private SysUserService sysUserService;
+
+    @Autowired
+    private ReagentService reagentService;
     
     /**
      * 入库
      */
     @Transactional(rollbackFor = Exception.class)
-    public void stockIn(StockInRecord record) {
+    public void stockIn(StockInDTO record) {
+        // 如果是新试剂（没有reagentId），先创建试剂
+        if (record.getReagentId() == null) {
+            if (record.getReagentName() == null || record.getReagentName().trim().isEmpty()) {
+                throw new RuntimeException("新试剂入库必须填写试剂名称");
+            }
+            Reagent newReagent = new Reagent();
+            newReagent.setName(record.getReagentName());
+            newReagent.setCasNo(record.getCasNo());
+            newReagent.setSpecification(record.getSpecification());
+            newReagent.setUnit(record.getUnit());
+            newReagent.setDangerLevel(record.getDangerLevel());
+            newReagent.setCategoryId(record.getCategoryId());
+            newReagent.setManufacturer(record.getManufacturer());
+            newReagent.setSupplierLeadTime(record.getSupplierLeadTime());
+            newReagent.setCreateTime(LocalDateTime.now());
+            newReagent.setUpdateTime(LocalDateTime.now());
+            
+            reagentService.save(newReagent);
+            record.setReagentId(newReagent.getId());
+        }
+
         // 保存入库记录
         stockInRecordMapper.insert(record);
         

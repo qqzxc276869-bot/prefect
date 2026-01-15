@@ -61,15 +61,14 @@ public class ApplyAssistService {
             o.set("unit", r.getUnit());
             candidate.add(o);
         }
-
-        // 简化 Prompt 以适配小模型，并强调多个用途模板
+        // 增强 Prompt：引导 AI 生成多样化（实验用途、辅助用品、清洗维护等）的申领模板
         String instruction = "你是实验室试剂申领助手。根据用户输入和候选试剂列表，返回严格的JSON格式。\n" +
-                "必须输出：{\"standardizedName\":\"试剂标准名称\",\"casNo\":\"CAS号\",\"suggestedQuantity\":数字,\"unit\":\"单位\",\"purposeTemplates\":[\"用途1\",\"用途2\",\"用途3\"],\"warnings\":[\"安全提示\"],\"reasoning\":\"简短理由\"}\n" +
-                "示例：{\"standardizedName\":\"无水乙醇\",\"casNo\":\"64-17-5\",\"suggestedQuantity\":1,\"unit\":\"瓶\",\"purposeTemplates\":[\"有机溶剂\",\"萃取提纯\",\"仪器清洗\"],\"warnings\":[\"易燃，远离火源\"],\"reasoning\":\"按瓶申领更合理\"}\n" +
-                "重要规则：\n" +
-                "1) purposeTemplates必须是数组，至少包含2-3个不同的常见用途\n" +
-                "2) 匹配系统试剂名称，常用试剂建议1-2瓶\n" +
-                "3) 只输出JSON，不要其他文字";
+                "【必须输出格式】：{\"standardizedName\":\"试剂标准名称\",\"casNo\":\"CAS号\",\"suggestedQuantity\":数字,\"unit\":\"单位\",\"purposeTemplates\":[\"用途1\",\"用途2\",\"用途3\",\"用途4\"],\"warnings\":[\"安全提示\"],\"reasoning\":\"简短理由\"}\n" +
+                "【重要规则】：\n" +
+                "1) purposeTemplates 必须包含 3-4 个不同类别的用途，例如：[实验核心反应, 溶剂/稀释/提取, 仪器清洗/日常维护, 储备液配制]。\n" +
+                "2) 每个模板应具体、符合科研场景（如 '用于XXX的酯化反应核心试剂' 而不仅仅是 '化学实验'）。\n" +
+                "3) 优先匹配候选列表中的试剂。若候选列表中没有相关试剂，尝试通过常见化学知识补全CAS号。\n" +
+                "4) 只输出JSON，严禁包含任何Markdown语法或解释性文字。";
 
         JSONObject payload = new JSONObject();
         payload.set("input", new JSONObject()

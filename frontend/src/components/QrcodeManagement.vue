@@ -61,14 +61,16 @@
 
       <!-- 分页 -->
       <el-pagination
-        style="margin-top: 20px; text-align: right;"
+        v-if="total > 0"
+        style="margin-top: 20px; text-align: center; padding: 10px 0;"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
         :current-page="currentPage"
         :page-sizes="[10, 20, 50]"
         :page-size="pageSize"
         layout="total, sizes, prev, pager, next, jumper"
-        :total="total">
+        :total="total"
+        background>
       </el-pagination>
     </el-card>
 
@@ -201,93 +203,91 @@ export default {
     async loadList() {
       this.loading = true
       try {
-        // 这里应该调用后端API
-        // const res = await getQrcodeList({ page: this.currentPage, size: this.pageSize })
-        
-        // 模拟数据 - 使用真实二维码
-        const mockData = [
-          {
-            id: 1,
-            reagentName: '乙醇',
-            batchNo: 'ET20240101',
-            specification: '分析纯AR 500ml',
-            location: '化学实验室B-B01-L1',
-            casNo: '64-17-5',
-            expiryDate: '2025-12-31',
-            qrcodeUrl: null,
-            createTime: null
-          },
-          {
-            id: 2,
-            reagentName: '甲醇',
-            batchNo: 'ME20240102',
-            specification: '分析纯AR 500ml',
-            location: '化学实验室B-B01-L1',
-            casNo: '67-56-1',
-            expiryDate: '2025-11-30',
-            qrcodeUrl: null,
-            createTime: null
-          },
-          {
-            id: 3,
-            reagentName: '丙酮',
-            batchNo: 'AC20240103',
-            specification: '分析纯AR 500ml',
-            location: '化学实验室B-B01-L2',
-            casNo: '67-64-1',
-            expiryDate: '2025-10-31',
-            qrcodeUrl: null,
-            createTime: null
-          }
-        ]
-        
-        // 为已有的试剂生成二维码
-        for (let i = 0; i < 2; i++) {
-          const qrData = this.createQrcodeData(mockData[i])
-          mockData[i].qrcodeUrl = await this.generateQrcodeImage(qrData, 256)
-          mockData[i].createTime = '2024-01-' + (15 + i * 5) + ' 10:00:00'
+        // 调用后端API获取库存列表
+        const inventoryApi = await import('@/api/inventory')
+        const params = {
+          name: this.searchName,
+          batchNo: this.searchBatchNo,
+          page: this.currentPage,
+          size: this.pageSize
         }
         
+        const res = await inventoryApi.getInventoryList(params)
+        let mockData = []
+        
+        // 处理返回的数据
+        if (res.data && res.data.records) {
+          // 分页数据
+          mockData = res.data.records.map(item => ({
+            id: item.id,
+            reagentName: item.reagentName,
+            batchNo: item.batchNo || 'N/A',
+            specification: item.specification,
+            location: item.locationName || item.location,
+            casNo: item.casNo || '',
+            expiryDate: item.expiryDate,
+            qrcodeUrl: null,
+            createTime: null
+          }))
+          this.total = res.data.total
+        } else if (Array.isArray(res.data)) {
+          // 列表数据
+          mockData = res.data.map(item => ({
+            id: item.id,
+            reagentName: item.reagentName,
+            batchNo: item.batchNo || 'N/A',
+            specification: item.specification,
+            location: item.locationName || item.location,
+            casNo: item.casNo || '',
+            expiryDate: item.expiryDate,
+            qrcodeUrl: null,
+            createTime: null
+          }))
+          this.total = mockData.length
+        }
+        
+        // 从LocalStorage恢复已生成的二维码
+        const savedQrcodes = this.loadQrcodesFromStorage()
+        mockData.forEach(item => {
+          const saved = savedQrcodes[item.id]
+          if (saved) {
+            item.qrcodeUrl = saved.qrcodeUrl
+            item.createTime = saved.createTime
+          }
+        })
+        
         this.list = mockData
-        this.total = this.list.length
         this.loading = false
       } catch (error) {
         console.error('加载列表失败:', error)
-        this.$message.error('加载数据失败')
+        this.$message.error('加载数据失败：' + (error.message || '未知错误'))
         this.loading = false
       }
     },
     loadInventoryList() {
-      // 模拟库存列表
-      this.inventoryList = [
-        { 
-          id: 3, 
-          reagentName: '丙酮', 
-          batchNo: 'AC20240103',
-          location: '化学实验室B-B01-L2',
-          specification: '分析纯AR 500ml',
-          casNo: '67-64-1',
-          expiryDate: '2025-10-31'
-        },
-        { 
-          id: 4, 
-          reagentName: '盐酸', 
-          batchNo: 'HCL20240201',
-          location: '化学实验室A-A02-L1',
-          specification: '优级纯GR 500ml',
-          casNo: '7647-01-0',
-          expiryDate: '2026-06-30'
-        },
-        { 
-          id: 5, 
-          reagentName: '硫酸', 
-          batchNo: 'H2SO20240202',
-          location: '化学实验室A-A02-L1',
-          specification: '优级纯GR 500ml',
-          casNo: '7664-93-9',
-          expiryDate: '2026-12-31'
-        }
-      ]
+      // 调用后端API获取库存列表供选择
+      import('@/api/inventory').then(inventoryApi => {
+        inventoryApi.getInventoryList({}).then(res => {
+          let data = []
+          if (res.data && res.data.records) {
+            data = res.data.records
+          } else if (Array.isArray(res.data)) {
+            data = res.data
+          }
+          
+          this.inventoryList = data.map(item => ({
+            id: item.id,
+            reagentName: item.reagentName,
+            batchNo: item.batchNo || 'N/A',
+            location: item.locationName || item.location,
+            specification: item.specification,
+            casNo: item.casNo || '',
+            expiryDate: item.expiryDate
+          }))
+        }).catch(error => {
+          console.error('加载库存列表失败:', error)
+        })
+      })
     },
     createQrcodeData(item) {
       // 创建二维码数据对象
@@ -365,12 +365,16 @@ export default {
         const selectedItem = this.inventoryList.find(item => item.id === this.form.inventoryId)
         const qrData = this.createQrcodeData(selectedItem)
         const qrcodeUrl = await this.generateQrcodeImage(qrData, this.form.size)
+        const createTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
         
-        // 在列表中更新（实际应该调用后端API保存）
+        // 保存到LocalStorage
+        this.saveQrcodeToStorage(this.form.inventoryId, qrcodeUrl, createTime)
+        
+        // 在列表中更新
         const listItem = this.list.find(item => item.id === this.form.inventoryId)
         if (listItem) {
           listItem.qrcodeUrl = qrcodeUrl
-          listItem.createTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+          listItem.createTime = createTime
         }
         
         this.$message.success('二维码生成成功')
@@ -380,40 +384,89 @@ export default {
         this.$message.error('生成二维码失败')
       }
     },
-    batchGenerate() {
-      // 获取未生成二维码的列表
-      this.toBatchList = this.list.filter(item => !item.qrcodeUrl)
-      if (this.toBatchList.length === 0) {
-        this.$message.info('所有试剂都已生成二维码')
-        return
+    async batchGenerate() {
+      // 获取所有未生成二维码的试剂（不限于当前页）
+      try {
+        this.loading = true
+        const inventoryApi = await import('@/api/inventory')
+        
+        // 获取所有库存数据（不分页）
+        const res = await inventoryApi.getInventoryList({ size: 10000 })
+        let allData = []
+        
+        if (res.data && res.data.records) {
+          allData = res.data.records
+        } else if (Array.isArray(res.data)) {
+          allData = res.data
+        }
+        
+        // 过滤出未生成二维码的试剂
+        this.toBatchList = allData.map(item => ({
+          id: item.id,
+          reagentName: item.reagentName,
+          batchNo: item.batchNo || 'N/A',
+          location: item.locationName || item.location,
+          specification: item.specification,
+          casNo: item.casNo || '',
+          expiryDate: item.expiryDate
+        })).filter(item => {
+          // 检查当前列表中是否已生成
+          const existItem = this.list.find(i => i.id === item.id)
+          return !existItem || !existItem.qrcodeUrl
+        })
+        
+        this.loading = false
+        
+        if (this.toBatchList.length === 0) {
+          this.$message.info('所有试剂都已生成二维码')
+          return
+        }
+        
+        this.batchDialogVisible = true
+      } catch (error) {
+        console.error('获取待生成列表失败:', error)
+        this.$message.error('获取数据失败')
+        this.loading = false
       }
-      this.batchDialogVisible = true
     },
     async confirmBatchGenerate() {
       this.generating = true
       try {
         let successCount = 0
+        this.$message.info(`开始批量生成 ${this.toBatchList.length} 个二维码，请稍候...`)
+        
         for (const item of this.toBatchList) {
           const qrData = this.createQrcodeData(item)
           const qrcodeUrl = await this.generateQrcodeImage(qrData, 256)
           
-          // 更新列表中的数据
+          // 保存到LocalStorage
+          const createTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+          this.saveQrcodeToStorage(item.id, qrcodeUrl, createTime)
+          
+          // 更新列表中的数据（如果在当前页）
           const listItem = this.list.find(i => i.id === item.id)
           if (listItem) {
             listItem.qrcodeUrl = qrcodeUrl
-            listItem.createTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
-            successCount++
+            listItem.createTime = createTime
           }
           
+          successCount++
+          
+          // TODO: 实际应该调用后端API保存二维码
+          // await saveQrcode({ inventoryId: item.id, qrcodeUrl })
+          
           // 模拟批量生成的延迟
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise(resolve => setTimeout(resolve, 50))
         }
         
-        this.$message.success(`成功生成 ${successCount} 个二维码`)
+        this.$message.success(`成功生成 ${successCount} 个二维码！`)
         this.generating = false
         this.batchDialogVisible = false
+        
+        // 刷新列表
+        this.loadList()
       } catch (error) {
-        this.$message.error('批量生成失败')
+        this.$message.error('批量生成失败: ' + (error.message || '未知错误'))
         this.generating = false
       }
     },
@@ -421,10 +474,14 @@ export default {
       try {
         const qrData = this.createQrcodeData(row)
         const qrcodeUrl = await this.generateQrcodeImage(qrData, 256)
+        const createTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+        
+        // 保存到LocalStorage
+        this.saveQrcodeToStorage(row.id, qrcodeUrl, createTime)
         
         // 更新列表
         row.qrcodeUrl = qrcodeUrl
-        row.createTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
+        row.createTime = createTime
         
         this.$message.success('二维码生成成功')
       } catch (error) {
@@ -545,6 +602,35 @@ export default {
     handleCurrentChange(val) {
       this.currentPage = val
       this.loadList()
+    },
+    // LocalStorage操作方法
+    saveQrcodeToStorage(id, qrcodeUrl, createTime) {
+      try {
+        const storageKey = 'reagent_qrcodes'
+        const saved = JSON.parse(localStorage.getItem(storageKey) || '{}')
+        saved[id] = { qrcodeUrl, createTime }
+        localStorage.setItem(storageKey, JSON.stringify(saved))
+      } catch (error) {
+        console.error('保存二维码到LocalStorage失败:', error)
+      }
+    },
+    loadQrcodesFromStorage() {
+      try {
+        const storageKey = 'reagent_qrcodes'
+        return JSON.parse(localStorage.getItem(storageKey) || '{}')
+      } catch (error) {
+        console.error('从LocalStorage加载二维码失败:', error)
+        return {}
+      }
+    },
+    clearQrcodeStorage() {
+      try {
+        const storageKey = 'reagent_qrcodes'
+        localStorage.removeItem(storageKey)
+        this.$message.success('已清空本地二维码缓存')
+      } catch (error) {
+        console.error('清空LocalStorage失败:', error)
+      }
     }
   }
 }

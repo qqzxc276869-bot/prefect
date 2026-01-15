@@ -8,6 +8,7 @@ import com.lab.reagent.entity.StorageLocation;
 import com.lab.reagent.mapper.InventoryMapper;
 import com.lab.reagent.mapper.StockInRecordMapper;
 import com.lab.reagent.mapper.StorageLocationMapper;
+import com.lab.reagent.mapper.ReagentCategoryMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,9 @@ public class StockInAssistService {
 
     @Autowired
     private StorageLocationMapper storageLocationMapper;
+
+    @Autowired
+    private ReagentCategoryMapper reagentCategoryMapper;
 
     @Autowired
     private AiService aiService;
@@ -90,10 +94,6 @@ public class StockInAssistService {
                 .limit(10)
                 .collect(Collectors.toList());
 
-        String instruction = "你是实验室入库智能助手。\n" +
-                "根据试剂名称与历史信息，给出一个JSON：{casNo,specification,dangerLevel,defaultExpiryMonths,recommendedLocation,reasoning}\n" +
-                "注意：若信息不确定可留空；recommendedLocation给出常见位置建议（文本）。严格返回JSON。";
-
         JSONObject payload = new JSONObject()
                 .set("name", nvl(req.getName()))
                 .set("quantity", req.getQuantity())
@@ -106,6 +106,24 @@ public class StockInAssistService {
                     o.set("danger", rg.getDangerLevel());
                     return o;
                 }).collect(Collectors.toList()));
+        String categoryName = "";
+        if (req.getReagentId() != null) {
+            Reagent targetReagent = reagentService.getById(req.getReagentId());
+            if (targetReagent != null && targetReagent.getCategoryId() != null) {
+                com.lab.reagent.entity.ReagentCategory cat = reagentCategoryMapper.selectById(targetReagent.getCategoryId());
+                if (cat != null) {
+                    categoryName = cat.getName();
+                    payload.set("category", categoryName);
+                }
+            }
+        }
+
+        String instruction = "你是实验室入库智能助手。\n" +
+                "根据试剂名称、分类(Category)与历史信息，给出一个JSON：{casNo,specification,dangerLevel,defaultExpiryMonths,recommendedLocation,suggestedRemark,reasoning}\n" +
+                "规则：\n" +
+                "1. 若有分类信息(如'易燃液体','强酸')，recommendedLocation 必须推荐符合该分类的安全柜/储藏柜。\n" +
+                "2. suggestedRemark 根据分类生成安全提示（如 '易燃品，注意防火'）。\n" +
+                "3. recommendedLocation 仅给出位置名称文本。";
 
         List<Map<String, String>> messages = new ArrayList<>();
         messages.add(mapOf("system", instruction));
@@ -121,6 +139,7 @@ public class StockInAssistService {
             r.setDangerLevel(obj.getStr("dangerLevel"));
             r.setDefaultExpiryMonths(obj.getInt("defaultExpiryMonths"));
             r.setRecommendedLocation(obj.getStr("recommendedLocation"));
+            r.setSuggestedRemark(obj.getStr("suggestedRemark")); // 解析AI建议的备注
             r.setReasoning(obj.getStr("reasoning"));
         } catch (Exception e) {
             log.warn("AI入库提示解析失败，返回原文: {}", reply);

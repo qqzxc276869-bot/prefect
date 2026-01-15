@@ -111,11 +111,19 @@
               </div>
               <el-form :model="applyForm" :rules="applyRules" ref="applyForm" label-width="100px">
                 <el-form-item label="试剂名称" prop="reagentId">
-                  <el-select v-model="applyForm.reagentId" placeholder="请选择试剂" style="width: 100%;" filterable>
+                  <el-select 
+                    v-model="applyForm.reagentId" 
+                    placeholder="请输入试剂名称搜索" 
+                    style="width: 100%;" 
+                    filterable 
+                    remote
+                    :remote-method="handleReagentSearch"
+                    :loading="reagentSearchLoading"
+                  >
                     <el-option
                         v-for="item in allReagentList"
                         :key="item.reagentId"
-                        :label="item.reagentName"
+                        :label="item.reagentName + (item.specification ? ' (' + item.specification + ')' : '')"
                         :value="item.reagentId"
                     ></el-option>
                   </el-select>
@@ -344,7 +352,8 @@ export default {
       currentPage: 1,
       pageSize: 10,
       total: 0,
-      allReagentList: [], // 所有试剂列表，用于申领选择
+      allReagentList: [], // 试剂下拉列表候选
+      reagentSearchLoading: false,
       applyForm: {
         reagentId: null,
         quantity: 1, // 默认为数字
@@ -394,7 +403,7 @@ export default {
   },
   mounted() {
     this.loadInventory()
-    this.loadAllReagents()
+    this.handleReagentSearch('')
     this.loadAnnouncements()
     this.loadMyApplications()
   },
@@ -402,7 +411,7 @@ export default {
     handleMenuSelect(index) {
       this.activeMenu = index
       if (index === 'apply') {
-        this.loadAllReagents()
+        this.handleReagentSearch('')
       } else if (index === 'myApplications') {
         this.loadMyApplications()
         this.applicationsViewed = true
@@ -437,23 +446,25 @@ export default {
         this.searchLoading = false
       })
     },
-    loadAllReagents() {
-      // 加载所有库存记录并根据试剂ID去重，确保下拉框只显示唯一的试剂名称
-      getInventoryList({ 
-        name: '',
-        page: 1,
-        size: 10000 
-      }).then(res => {
-        const list = res.data && res.data.records ? res.data.records : (res.data || [])
-        // 使用 Map 根据 reagentId 去重
-        const uniqueMap = new Map()
-        list.forEach(item => {
-          if (!uniqueMap.has(item.reagentId)) {
-            uniqueMap.set(item.reagentId, item)
-          }
+    handleReagentSearch(query) {
+      if (query !== undefined) {
+        this.reagentSearchLoading = true
+        getInventoryList({ 
+          name: query,
+          page: 1,
+          size: 50 // 仅加载前50个匹配项
+        }).then(res => {
+          const list = res.data && res.data.records ? res.data.records : (res.data || [])
+          // 去重并在本地缓存部分数据以提升体验
+          const uniqueMap = new Map()
+          list.forEach(item => {
+            if (!uniqueMap.has(item.reagentId)) uniqueMap.set(item.reagentId, item)
+          })
+          this.allReagentList = Array.from(uniqueMap.values())
+        }).finally(() => {
+          this.reagentSearchLoading = false
         })
-        this.allReagentList = Array.from(uniqueMap.values())
-      })
+      }
     },
     handleSizeChange(val) {
       this.pageSize = val
@@ -483,7 +494,15 @@ export default {
       
       this.searchLoading = true
       this.currentPage = 1 // 搜索时重置分页
+      const aiTip = this.$message({
+        message: 'AI正在理解您的意图并检索最相关的试剂...',
+        type: 'info',
+        duration: 0,
+        iconClass: 'el-icon-loading'
+      });
+      
       semanticSearch({ query: this.searchName, topK: 10, model: '' }).then(res => {
+        aiTip.close();
         const aiResults = res.data || []
         if (!aiResults.length) {
           this.$message.info('未找到匹配的试剂，切换到常规搜索')
@@ -543,10 +562,15 @@ export default {
         this.searchMode = 'normal'
       }).finally(() => {
         this.searchLoading = false
+        if (typeof aiTip !== 'undefined' && aiTip) aiTip.close();
       })
     },
     showApplyDialog(row) {
       this.activeMenu = 'apply'
+      // 确保当前行在搜索结果中，这样下拉框能正确显示名称
+      if (!this.allReagentList.find(x => x.reagentId === row.reagentId)) {
+        this.allReagentList.push(row)
+      }
       this.applyForm.reagentId = row.reagentId
     },
     submitApply() {
@@ -570,9 +594,9 @@ export default {
 
       const loading = this.$loading({
         lock: true,
-        text: 'AI正在分析优化建议...',
+        text: 'AI正在为您量身定制申领建议...',
         spinner: 'el-icon-loading',
-        background: 'rgba(0, 0, 0, 0.7)'
+        background: 'rgba(255, 255, 255, 0.8)'
       });
 
       optimizeApplyForm({

@@ -102,7 +102,7 @@
           <div v-show="activeMenu === 'dashboard'">
             <el-row :gutter="20">
               <el-col :span="6">
-                <el-card class="stat-card">
+                <el-card class="stat-card" @click.native="handleMenuSelect('users')">
                   <div class="stat-content-wrapper">
                     <div class="stat-icon-mini" style="background: #ecf5ff; color: #409EFF;">
                       <i class="el-icon-user"></i>
@@ -115,7 +115,7 @@
                 </el-card>
               </el-col>
               <el-col :span="6">
-                <el-card class="stat-card">
+                <el-card class="stat-card" @click.native="handleMenuSelect('inventory')">
                   <div class="stat-content-wrapper">
                     <div class="stat-icon-mini" style="background: #f0f9eb; color: #67C23A;">
                       <i class="el-icon-document"></i>
@@ -141,7 +141,7 @@
                 </el-card>
               </el-col>
               <el-col :span="6">
-                <el-card class="stat-card">
+                <el-card class="stat-card" @click.native="handleMenuSelect('applications')">
                   <div class="stat-content-wrapper">
                     <div class="stat-icon-mini" style="background: #fef0f0; color: #F56C6C;">
                       <i class="el-icon-s-order"></i>
@@ -704,13 +704,6 @@ export default {
     this.loadDashboard()
   },
   methods: {
-    loadDashboard() {
-      // 加载仪表盘数据
-      this.loadUsers()
-      this.loadInventory()
-      this.loadApplications()
-    },
-    
     handleMenuSelect(index) {
       this.activeMenu = index
       if (index === 'users') {
@@ -741,8 +734,9 @@ export default {
         this.generateUserRoleChart(res.data)
       })
       getInventoryList({}).then(res => {
-        this.inventoryCount = res.data.length
-        this.generateInventoryStatusChart(res.data)
+        // 使用 res.data.total 处理分页后的总数，如果返回的是数组则使用 length
+        this.inventoryCount = (res.data && res.data.total !== undefined) ? res.data.total : (res.data ? res.data.length : 0)
+        this.generateInventoryStatusChart(res.data.records || res.data || [])
       })
       getWarningList().then(res => {
         const list = res.data || []
@@ -1303,15 +1297,26 @@ export default {
       
       for (let i = 5; i >= 0; i--) {
         const date = new Date()
+        // 【关键修复】：先设为1号，避免在31号时减去月份导致日期溢出（如2月没有31号会变成3月）
+        date.setDate(1)
         date.setMonth(date.getMonth() - i)
-        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-        months.push(month)
+        const year = date.getFullYear()
+        const monthNum = date.getMonth() + 1
+        const monthStr = `${year}-${String(monthNum).padStart(2, '0')}`
+        months.push(monthStr)
         
         // 统计该月的申请数量
         const count = applicationList.filter(app => {
-          const appDate = new Date(app.createTime)
-          const appMonth = `${appDate.getFullYear()}-${String(appDate.getMonth() + 1).padStart(2, '0')}`
-          return appMonth === month
+          if (!app.createTime) return false
+          // 兼容格式：处理日期字符串，确保 new Date() 能够正确解析
+          const normalizedDate = app.createTime.replace(/-/g, '/').replace(/T/g, ' ')
+          const appDate = new Date(normalizedDate)
+          if (isNaN(appDate.getTime())) return false
+          
+          const appYear = appDate.getFullYear()
+          const appMonthNum = appDate.getMonth() + 1
+          const appMonthStr = `${appYear}-${String(appMonthNum).padStart(2, '0')}`
+          return appMonthStr === monthStr
         }).length
         
         counts.push(count)
@@ -1411,6 +1416,13 @@ export default {
 .stat-card {
   padding: 0;
   overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 .stat-content-wrapper {

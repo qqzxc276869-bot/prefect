@@ -36,7 +36,7 @@ public class StockController {
      * 入库
      */
     @PostMapping("/in")
-    public Result<String> stockIn(@RequestBody StockInRecord record,
+    public Result<String> stockIn(@RequestBody com.lab.reagent.dto.StockInDTO record,
                                    @RequestHeader("userId") Long userId,
                                    @RequestHeader("realName") String realName) {
         try {
