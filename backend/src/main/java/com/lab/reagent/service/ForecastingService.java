@@ -42,6 +42,9 @@ public class ForecastingService {
     @Autowired
     private AiService aiService;
     
+    @Autowired
+    private TimeService timeService;
+    
     /**
      * 为指定试剂生成预测（使用AI模型）
      */
@@ -130,6 +133,7 @@ public class ForecastingService {
             
             // 6. 构建AI提示词
             Map<String, Object> dataForAI = new HashMap<>();
+            dataForAI.put("currentDate", LocalDate.now().toString());  // 明确告知AI当前日期
             dataForAI.put("reagentName", reagent.getName());
             dataForAI.put("reagentSpecification", reagent.getSpecification());
             dataForAI.put("currentStock", currentStock);
@@ -142,15 +146,26 @@ public class ForecastingService {
             dataForAI.put("analysisStartDate", startDate.toLocalDate().toString());
             dataForAI.put("analysisEndDate", LocalDate.now().toString());
             
-            String systemPrompt = "你是实验室试剂消耗预测专家。根据历史消耗数据，预测未来30天的消耗趋势。\n" +
+            // 获取系统时间（作为项目统一的时间参照）
+            LocalDateTime systemTime = timeService.getBeijingTime();
+            String timeDescription = timeService.getFormattedTimeDescription();
+            
+            String systemPrompt = "你是实验室试剂消耗预测专家。根据历史消耗数据,预测未来30天的消耗趋势。\n" +
+                    "**关键时间信息**：\n" +
+                    "- " + timeDescription + "\n" +
+                    "- 当前年份：" + systemTime.getYear() + "年\n" +
+                    "- 当前月份：" + systemTime.getMonthValue() + "月\n" +
+                    "- 重要提示：我们现在已经是" + systemTime.getYear() + "年了，所有" + (systemTime.getYear() - 1) + "年的日期都已经是过去了。\n" +
+                    "- 你预测的所有日期都必须是" + systemTime.toLocalDate() + "之后的未来日期。\n" +
+                    "\n" +
                     "请严格返回JSON格式，包含以下字段：\n" +
                     "{\n" +
                     "  \"predictedDailyConsumption\": 预测的日均消耗量（数字）,\n" +
                     "  \"predictedTotalConsumption\": 未来30天预测总消耗量（数字）,\n" +
-                    "  \"daysUntilDepletion\": 预计耗尽天数（整数）,\n" +
-                    "  \"predictedDepletionDate\": 预计耗尽日期（YYYY-MM-DD格式）,\n" +
+                    "  \"daysUntilDepletion\": 从今天（" + systemTime.toLocalDate() + "）开始计算，预计耗尽天数（整数）,\n" +
+                    "  \"predictedDepletionDate\": 预计耗尽日期（YYYY-MM-DD格式，必须是" + systemTime.getYear() + "年或之后的日期）,\n" +
                     "  \"recommendedOrderQuantity\": 建议订购数量（数字）,\n" +
-                    "  \"recommendedOrderDate\": 建议下单日期（YYYY-MM-DD格式）,\n" +
+                    "  \"recommendedOrderDate\": 建议下单日期（YYYY-MM-DD格式，必须是" + systemTime.getYear() + "年或之后，且晚于" + systemTime.toLocalDate() + "）,\n" +
                     "  \"confidenceLevel\": 预测置信度（0-100的整数）,\n" +
                     "  \"trendAnalysis\": 消耗趋势分析（字符串）,\n" +
                     "  \"riskFactors\": 风险因素说明（字符串数组）,\n" +
@@ -191,17 +206,21 @@ public class ForecastingService {
             
             // 安全地从AI结果中提取数据
             LocalDate depDate = safeParseDate(aiResult.get("predictedDepletionDate"));
-            if (depDate == null) {
+            LocalDate today = LocalDate.now();
+            
+            // 验证日期不能是过去的日期
+            if (depDate == null || depDate.isBefore(today)) {
+                log.warn("AI返回的耗尽日期无效或已过期: {}，将基于当前日期重新计算", depDate);
                 // 默认降级：基于平均日消耗计算
                 BigDecimal daily = averageDailyConsumption.compareTo(BigDecimal.ZERO) > 0 ? averageDailyConsumption : new BigDecimal("0.5");
                 int daysUntil = currentStock.divide(daily, 0, RoundingMode.UP).intValue();
-                depDate = LocalDate.now().plusDays(daysUntil);
+                depDate = today.plusDays(daysUntil);
             }
             forecast.setPredictedDepletionDate(depDate);
             
             Integer daysUntil = safeParseInt(aiResult.get("daysUntilDepletion"));
-            if (daysUntil == null) {
-                daysUntil = (int) ChronoUnit.DAYS.between(LocalDate.now(), depDate);
+            if (daysUntil == null || daysUntil < 0) {
+                daysUntil = (int) ChronoUnit.DAYS.between(today, depDate);
             }
             forecast.setDaysUntilDepletion(daysUntil);
             
@@ -212,8 +231,14 @@ public class ForecastingService {
             forecast.setSupplierLeadTime(supplierLeadTime);
             
             LocalDate orderDate = safeParseDate(aiResult.get("recommendedOrderDate"));
-            if (orderDate == null) {
+            // 验证建议下单日期
+            if (orderDate == null || orderDate.isBefore(today)) {
+                log.warn("AI返回的建议下单日期无效或已过期: {}，将基于耗尽日期重新计算", orderDate);
                 orderDate = depDate.minusDays(supplierLeadTime + 2);
+                // 如果计算出的下单日期也是过去的，则设置为今天
+                if (orderDate.isBefore(today)) {
+                    orderDate = today;
+                }
             }
             forecast.setRecommendedOrderDate(orderDate);
             
@@ -284,6 +309,7 @@ public class ForecastingService {
             
             // 使用AI进行基础预测，即使没有历史数据
             Map<String, Object> dataForAI = new HashMap<>();
+            dataForAI.put("currentDate", LocalDate.now().toString());  // 明确当前日期
             dataForAI.put("reagentName", reagent.getName());
             dataForAI.put("reagentSpecification", reagent.getSpecification());
             dataForAI.put("currentStock", currentStock);
@@ -292,21 +318,31 @@ public class ForecastingService {
             dataForAI.put("hasHistoryData", false);
             dataForAI.put("note", "该试剂暂无历史消耗记录，将基于试剂特性和库存情况进行基础预测");
             
+            // 获取系统时间（作为项目统一的时间参照）
+            LocalDateTime systemTime = timeService.getBeijingTime();
+            String timeDescription = timeService.getFormattedTimeDescription();
+            
             String systemPrompt = "你是实验室试剂消耗预测专家。由于该试剂暂无历史消耗数据，请基于试剂特性和当前库存情况，提供合理的预测建议。\n" +
+                    "**关键时间信息**：\n" +
+                    "- " + timeDescription + "\n" +
+                    "- 当前年份：" + systemTime.getYear() + "年\n" +
+                    "- 当前月份：" + systemTime.getMonthValue() + "月\n" +
+                    "- 重要提示：我们现在已经是" + systemTime.getYear() + "年了，所有" + (systemTime.getYear() - 1) + "年的日期都已经是过去了。\n" +
+                    "- 你预测的所有日期都必须是" + systemTime.toLocalDate() + "之后的未来日期。\n" +
+                    "\n" +
                     "请严格返回JSON格式，包含以下字段：\n" +
                     "{\n" +
                     "  \"predictedDailyConsumption\": 预测的日均消耗量（数字，建议值0.1-1.0）,\n" +
                     "  \"predictedTotalConsumption\": 未来30天预测总消耗量（数字）,\n" +
-                    "  \"daysUntilDepletion\": 预计耗尽天数（整数，基于当前库存和预测消耗）,\n" +
-                    "  \"predictedDepletionDate\": 预计耗尽日期（YYYY-MM-DD格式）,\n" +
+                    "  \"daysUntilDepletion\": 从今天（" + systemTime.toLocalDate() + "）开始计算的预计耗尽天数（整数）,\n" +
+                    "  \"predictedDepletionDate\": 预计耗尽日期（YYYY-MM-DD格式，必须是" + systemTime.getYear() + "年或之后的日期）,\n" +
                     "  \"recommendedOrderQuantity\": 建议订购数量（数字，建议30-60天用量）,\n" +
-                    "  \"recommendedOrderDate\": 建议下单日期（YYYY-MM-DD格式，提前供应商到货周期）,\n" +
+                    "  \"recommendedOrderDate\": 建议下单日期（YYYY-MM-DD格式，必须是" + systemTime.getYear() + "年或之后，且晚于" + systemTime.toLocalDate() + "）,\n" +
                     "  \"confidenceLevel\": 预测置信度（0-100的整数，数据不足时建议30-50）,\n" +
                     "  \"trendAnalysis\": 消耗趋势分析（字符串，说明数据不足的情况）,\n" +
                     "  \"riskFactors\": 风险因素说明（字符串数组）,\n" +
                     "  \"suggestions\": 采购建议（字符串数组）\n" +
                     "}";
-            
             String userPrompt = "请基于以下试剂信息进行基础预测：\n" + JSON.toJSONString(dataForAI, true);
             
             List<Map<String, String>> messages = new ArrayList<>();
@@ -338,15 +374,22 @@ public class ForecastingService {
             
             // 安全提取
             LocalDate depDate = safeParseDate(aiResult.get("predictedDepletionDate"));
-            if (depDate == null) {
+            LocalDate today = LocalDate.now();
+            
+            // 验证日期不能是过去的日期
+            if (depDate == null || depDate.isBefore(today)) {
+                log.warn("AI返回的耗尽日期无效或已过期: {}，将基于当前日期重新计算", depDate);
                 BigDecimal daily = new BigDecimal("0.5");
                 int days = currentStock.divide(daily, 0, RoundingMode.UP).intValue();
-                depDate = LocalDate.now().plusDays(days);
+                depDate = today.plusDays(days);
             }
             forecast.setPredictedDepletionDate(depDate);
             
             Integer daysUntil = safeParseInt(aiResult.get("daysUntilDepletion"));
-            forecast.setDaysUntilDepletion(daysUntil != null ? daysUntil : (int) ChronoUnit.DAYS.between(LocalDate.now(), depDate));
+            if (daysUntil == null || daysUntil < 0) {
+                daysUntil = (int) ChronoUnit.DAYS.between(today, depDate);
+            }
+            forecast.setDaysUntilDepletion(daysUntil);
             
             BigDecimal predDaily = safeParseBigDecimal(aiResult.get("predictedDailyConsumption"));
             forecast.setAverageDailyConsumption(predDaily != null ? predDaily : new BigDecimal("0.5"));
@@ -355,7 +398,16 @@ public class ForecastingService {
             forecast.setSupplierLeadTime(leadTime);
             
             LocalDate orderDate = safeParseDate(aiResult.get("recommendedOrderDate"));
-            forecast.setRecommendedOrderDate(orderDate != null ? orderDate : depDate.minusDays(leadTime + 3));
+            // 验证建议下单日期
+            if (orderDate == null || orderDate.isBefore(today)) {
+                log.warn("AI返回的建议下单日期无效或已过期: {}，将基于耗尽日期重新计算", orderDate);
+                orderDate = depDate.minusDays(leadTime + 3);
+                // 如果计算出的下单日期也是过去的，则设置为今天
+                if (orderDate.isBefore(today)) {
+                    orderDate = today;
+                }
+            }
+            forecast.setRecommendedOrderDate(orderDate);
             
             BigDecimal orderQty = safeParseBigDecimal(aiResult.get("recommendedOrderQuantity"));
             forecast.setRecommendedOrderQuantity(orderQty != null ? orderQty : forecast.getAverageDailyConsumption().multiply(new BigDecimal("30")));
