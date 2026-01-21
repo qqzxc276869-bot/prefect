@@ -265,6 +265,12 @@
               <div slot="header">
                 <span>库存查看</span>
                 <div style="float: right; display: flex; gap: 10px; align-items: center;">
+                  <el-button 
+                    size="small" 
+                    type="primary" 
+                    icon="el-icon-download"
+                    @click="exportInventory"
+                  >导出库存报表</el-button>
                   <el-select v-model="adminFilterStatus" @change="handleAdminFilterChange" size="small" placeholder="状态" style="width: 120px;" clearable>
                     <el-option label="全部" value=""></el-option>
                     <el-option label="正常" value="NORMAL"></el-option>
@@ -1095,6 +1101,28 @@ export default {
       }).catch(err => {
         console.error('导出失败:', err)
         this.$message.error('导出失败')
+      })
+    },
+    // 管理员端库存导出
+    exportInventory() {
+      const loading = this.$loading({
+        lock: true,
+        text: '正在导出库存报表...',
+        spinner: 'el-icon-loading',
+        background: 'rgba(0, 0, 0, 0.7)'
+      })
+      exportInventory().then(blob => {
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = '库存清单_' + new Date().toISOString().slice(0, 10) + '.xlsx'
+        link.click()
+        window.URL.revokeObjectURL(url)
+        this.$message.success('库存报表导出成功！')
+      }).catch(err => {
+        this.$message.error('导出失败：' + (err.message || '未知错误'))
+      }).finally(() => {
+        loading.close()
       })
     },
     exportStockInData() {
