@@ -81,7 +81,7 @@ public class RiskAnalysisService {
         messages.add(mapOf("system", instruction));
         messages.add(mapOf("user", payload.toString()));
 
-        String reply = aiService.chat(req.getModel(), messages);
+        String reply = aiService.chatRaw(req.getModel(), messages);
         String json = stripFence(reply);
 
         AnalyzeResponse resp = new AnalyzeResponse();

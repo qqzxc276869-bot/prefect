@@ -129,7 +129,7 @@ public class StockInAssistService {
         messages.add(mapOf("system", instruction));
         messages.add(mapOf("user", payload.toString()));
 
-        String reply = aiService.chat(req.getModel(), messages);
+        String reply = aiService.chatRaw(req.getModel(), messages);
         String json = stripFence(reply);
 
         try {

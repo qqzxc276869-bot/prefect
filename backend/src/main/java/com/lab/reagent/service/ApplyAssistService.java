@@ -89,7 +89,7 @@ public class ApplyAssistService {
         usr.put("content", payload.toString());
         messages.add(usr);
 
-        String reply = aiService.chat(req.getModel(), messages);
+        String reply = aiService.chatRaw(req.getModel(), messages);
         // 增强 JSON 提取逻辑
         String jsonText = stripFence(reply);
         log.info("AI原始响应: {}", reply);

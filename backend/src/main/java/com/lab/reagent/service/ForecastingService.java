@@ -186,7 +186,7 @@ public class ForecastingService {
             userMsg.put("content", userPrompt);
             messages.add(userMsg);
             
-            String aiResponse = aiService.chat(null, messages);
+            String aiResponse = aiService.chatRaw(null, messages);
             
             // 8. 解析AI返回的JSON
             String jsonContent = extractJsonFromResponse(aiResponse);
@@ -356,7 +356,7 @@ public class ForecastingService {
             userMsg.put("content", userPrompt);
             messages.add(userMsg);
             
-            String aiResponse = aiService.chat(null, messages);
+            String aiResponse = aiService.chatRaw(null, messages);
             String jsonContent = extractJsonFromResponse(aiResponse);
             Map<String, Object> aiResult;
             try {

@@ -1197,7 +1197,16 @@ export default {
     },
     handlePrecheck(row) {
       this.currentApplication = row
+      
+      const loading = this.$loading({
+        lock: true,
+        text: 'AI正在查库存和预审...',
+        spinner: 'el-icon-loading',
+        background: 'rgba(0, 0, 0, 0.7)'
+      })
+
       approvePrecheck({ applicationId: row.id, model: 'doubao-seed-1-6-flash-250828' }).then(res => {
+        loading.close()
         const d = res.data || {}
         const tips = []
         // 使用HTML标签增加可读性
@@ -1210,6 +1219,7 @@ export default {
         this.precheckResult = tips
         this.precheckDialogVisible = true
       }).catch(err => {
+        loading.close()
         this.$message.error('AI预审失败：' + (err.message || ''))
       })
     },

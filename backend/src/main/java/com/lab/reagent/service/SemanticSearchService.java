@@ -108,7 +108,7 @@ public class SemanticSearchService {
         usr.put("content", userPayload.toString());
         messages.add(usr);
 
-        String reply = aiService.chat(model != null && !model.isEmpty() ? model : null, messages);
+        String reply = aiService.chatRaw(model != null && !model.isEmpty() ? model : null, messages);
 
         // 解析AI返回
         String jsonText = stripFence(reply);

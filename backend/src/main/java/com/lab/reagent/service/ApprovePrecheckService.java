@@ -67,7 +67,7 @@ public class ApprovePrecheckService {
         List<Map<String, String>> messages = new ArrayList<>();
         messages.add(mapOf("system", "严格返回JSON，不要多余文字。"));
         messages.add(mapOf("user", prompt));
-        String reply = aiService.chat(req.getModel(), messages);
+        String reply = aiService.chatRaw(req.getModel(), messages);
         String json = stripFence(reply);
 
         PrecheckResponse r = new PrecheckResponse();
