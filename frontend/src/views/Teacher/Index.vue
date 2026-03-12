@@ -680,6 +680,7 @@ export default {
       processedList: [], // 已审批列表
       feedbackTab: 'pending',
       replenishSuggestions: [],
+      replenishLoading: false, // 防止补货建议重复请求
       // 反馈详情相关
       teacherFeedbackDetailVisible: false,
       currentTeacherFeedback: null,
@@ -862,10 +863,14 @@ export default {
       this.loadReplenishSuggestions()
     },
     loadReplenishSuggestions() {
-      getReplenishSuggestions({ model: 'qwen2.5:3b' }).then(res => {
+      if (this.replenishLoading) return // 已在请求中，跳过
+      this.replenishLoading = true
+      getReplenishSuggestions({ model: 'doubao-seed-1-6-flash-250828' }).then(res => {
         this.replenishSuggestions = res.data || []
       }).catch(() => {
         this.replenishSuggestions = []
+      }).finally(() => {
+        this.replenishLoading = false
       })
     },
     loadFeedback() {
@@ -995,7 +1000,7 @@ export default {
         quantity: this.stockInForm.quantity, 
         quantity: this.stockInForm.quantity, 
         unit, 
-        model: 'qwen2.5:3b' 
+        model: 'doubao-seed-1-6-flash-250828' 
       })
         .then(res => {
           loading.close() // 关闭加载
@@ -1192,7 +1197,7 @@ export default {
     },
     handlePrecheck(row) {
       this.currentApplication = row
-      approvePrecheck({ applicationId: row.id, model: 'qwen2.5:3b' }).then(res => {
+      approvePrecheck({ applicationId: row.id, model: 'doubao-seed-1-6-flash-250828' }).then(res => {
         const d = res.data || {}
         const tips = []
         // 使用HTML标签增加可读性

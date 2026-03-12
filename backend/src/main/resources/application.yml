@@ -25,9 +25,9 @@ jwt:
   secret: reagent-management-secret-key-2024
   expiration: 86400000  # 24小时
 
-# AI配置（使用本地Ollama部署）
+# AI配置（使用豆包 Doubao 云端API）
 ai:
   enabled: true
-  base-url: http://localhost:11434/v1
-  api-key: ollama
-  model: qwen2.5:3b
+  base-url: https://ark.cn-beijing.volces.com/api/v3
+  api-key: 67fed0c7-417d-4b0e-9401-253759e71478
+  model: doubao-seed-1-6-flash-250828

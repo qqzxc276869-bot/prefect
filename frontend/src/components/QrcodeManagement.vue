@@ -290,26 +290,26 @@ export default {
       })
     },
     createQrcodeData(item) {
-      // 创建二维码数据对象
-      return {
-        type: 'reagent_inventory',
-        id: item.id,
-        reagentName: item.reagentName,
-        batchNo: item.batchNo,
-        specification: item.specification,
-        location: item.location,
-        casNo: item.casNo,
-        expiryDate: item.expiryDate,
-        timestamp: new Date().getTime()
-      }
+      // 创建易读的二维码文本内容
+      const lines = [
+        `【试剂库存信息】`,
+        ``,
+        `试剂名称：${item.reagentName || '-'}`,
+        `批次号：${item.batchNo || '-'}`,
+        `规格型号：${item.specification || '-'}`,
+        `CAS编号：${item.casNo || '-'}`,
+        `存放位置：${item.location || '-'}`,
+        `有效期：${item.expiryDate || '-'}`,
+        ``,
+        `ID: ${item.id}`,
+        `生成时间：${new Date().toLocaleString('zh-CN')}`
+      ]
+      return lines.join('\n')
     },
     async generateQrcodeImage(data, size = 256) {
       try {
-        // 将数据转为JSON字符串
-        const jsonStr = JSON.stringify(data, null, 2)
-        
-        // 使用QRCode库生成二维码图片（Base64格式）
-        const qrcodeDataUrl = await QRCode.toDataURL(jsonStr, {
+        // 直接使用文本内容生成二维码
+        const qrcodeDataUrl = await QRCode.toDataURL(data, {
           width: size,
           margin: 1,
           color: {
@@ -346,7 +346,7 @@ export default {
       
       // 创建二维码数据
       const qrData = this.createQrcodeData(selectedItem)
-      this.form.content = JSON.stringify(qrData, null, 2)
+      this.form.content = qrData  // 直接使用文本内容
       
       // 生成预览
       try {

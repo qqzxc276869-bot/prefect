@@ -38,12 +38,13 @@ export function getFifoSuggestion(reagentId) {
   })
 }
 
-// 获取AI补货建议
+// 获取AI补货建议（单独设置120秒超时，AI接口响应较慢）
 export function getReplenishSuggestions(data) {
   return request({
     url: '/ai/replenish/suggest',
     method: 'post',
-    data
+    data,
+    timeout: 120000
   })
 }
 

@@ -39,7 +39,7 @@ public class AiService {
     
     private static final String SYSTEM_KNOWLEDGE = 
         "### 核心业务指令 (CORE MISSION) ###\n" +
-        "你不是通用AI助手。你是由【实验室化学试剂管理系统】深度集成的专用智能内核。\n" +
+        "你不是通用AI助手。你是由【实验室化学试剂与耗材库存管理系统】深度集成的专用智能内核。\n" +
         "1. **身份边界**：你的服务对象仅限于化学实验室。严禁讨论电商、游戏、手机数码、北京/上海仓储等泛化场景。如果用户问“库存”，指且仅指本系统的【化学试剂库存】。\n" +
         "2. **数据主权**：随对话提供的【真实库存快照】是你唯一的知识来源。如果看到快照，请立即进入专家模式，直接列出数据或进行分析。\n" +
         "3. **禁令**：严禁回答“我无法查看数据库”或“请登录系统查看”。你看到的快照就是你从数据库“实时读取”的结果，请以“本系统当前记录...”的确定语气回复。\n" +
@@ -47,7 +47,7 @@ public class AiService {
         CHEMISTRY_KNOWLEDGE;
 
     /**
-     * 调用AI模型生成回复（使用Ollama API）
+     * 调用AI模型生成回复（使用豆包 Doubao API）
      * @param model 模型名称，如果为空则使用配置的默认模型
      * @param messages 对话消息列表
      * @return AI生成的回复内容
@@ -106,7 +106,23 @@ public class AiService {
     }
 
     /**
-     * 通过 Ollama API 进行对话（兼容OpenAI格式）
+     * 轻量对话：直接发送消息，不注入系统知识库（适用于补货建议等结构化场景）
+     */
+    public String chatRaw(String model, List<Map<String, String>> messages) {
+        if (!aiProperties.isEnabled()) {
+            throw new RuntimeException("AI功能未启用");
+        }
+        String useModel = (model == null || model.trim().isEmpty()) ? aiProperties.getModel() : model;
+        try {
+            return chatViaOllama(useModel, messages);
+        } catch (Exception e) {
+            log.error("AI服务(Raw)调用异常", e);
+            throw new RuntimeException("处理AI请求时发生错误: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 通过豆包 Doubao API 进行对话（兼容OpenAI格式）
      */
     private String chatViaOllama(String model, List<Map<String, String>> messages) {
         String baseUrl = aiProperties.getBaseUrl();
@@ -131,23 +147,19 @@ public class AiService {
         log.info("---------------------------");
         body.set("messages", msgs);
         
-        // 性能优化参数
-        JSONObject options = new JSONObject();
-        options.set("num_predict", 300);        // 限制输出token数，提升响应速度
-        options.set("temperature", 0.3);        // 降低随机性，提高输出稳定性
-        options.set("top_p", 0.9);              // 核采样
-        options.set("top_k", 40);               // Top-K采样
-        options.set("repeat_penalty", 1.1);     // 重复惩罚
-        body.set("options", options);
+        // 豆包API（OpenAI兼容格式）参数
+        body.set("max_tokens", 512);            // 限制输出长度，加快响应速度
+        body.set("temperature", 0.3);           // 降低随机性，提高输出稳定性
+        body.set("top_p", 0.9);                 // 核采样
 
         String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
 
-        log.info("调用Ollama API: {} with model: {}", url, model);
+        log.info("调用豆包API: {} with model: {}", url, model);
 
         HttpRequest request = HttpRequest.post(url)
                 .header("Content-Type", ContentType.JSON.getValue())
                 .body(body.toString())
-                .timeout(60000); // Ollama本地调用可能需要更长时间，设置60秒超时
+                .timeout(120000); // 豆包云端API超时修改为120秒
 
         // 如果配置了API Key，则添加Authorization头（Ollama本地部署通常不需要）
         if (aiProperties.getApiKey() != null && !aiProperties.getApiKey().trim().isEmpty()) {
@@ -158,12 +170,12 @@ public class AiService {
 
         if (resp.getStatus() < 200 || resp.getStatus() >= 300) {
             String err = resp.body();
-            log.error("Ollama API调用失败，status={} body={}", resp.getStatus(), err);
+            log.error("豆包API调用失败，status={} body={}", resp.getStatus(), err);
             throw new RuntimeException("AI服务调用失败(" + resp.getStatus() + ")：" + err);
         }
 
         String respBody = resp.body();
-        log.debug("Ollama API响应: {}", respBody);
+        log.debug("豆包API响应: {}", respBody);
         
         JSONObject json = JSONUtil.parseObj(respBody);
         if (!json.containsKey("choices")) {

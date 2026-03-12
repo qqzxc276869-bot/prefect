@@ -48,7 +48,7 @@ public class AiReplenishService {
         List<Inventory> lowStockList = inventoryMapper.selectList(wrapper);
         
         // 性能优化：限制处理数量，防止Prompt过长
-        List<Inventory> targetList = lowStockList.stream().limit(15).collect(Collectors.toList());
+        List<Inventory> targetList = lowStockList.stream().limit(5).collect(Collectors.toList()); // 限制5条，进一步减少Token降低超时
         if (targetList.isEmpty()) {
             return suggestions;
         }
@@ -107,7 +107,7 @@ public class AiReplenishService {
         messages.add(usr);
 
         // 3. 调用 AI (一次调用)
-        String reply = aiService.chat(model, messages);
+        String reply = aiService.chatRaw(model, messages); // 使用chatRaw跳过系统知识库注入，减少Token
         String jsonText = stripFence(reply);
         
         // 4. 解析结果并组装
