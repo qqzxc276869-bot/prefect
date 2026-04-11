@@ -290,19 +290,16 @@ export default {
       })
     },
     createQrcodeData(item) {
-      // 创建易读的二维码文本内容
+      // 创建易读的二维码文本内容（全中文，扫描结果直观）
       const lines = [
         `【试剂库存信息】`,
-        ``,
         `试剂名称：${item.reagentName || '-'}`,
         `批次号：${item.batchNo || '-'}`,
         `规格型号：${item.specification || '-'}`,
-        `CAS编号：${item.casNo || '-'}`,
+        `CAS号：${item.casNo || '-'}`,
         `存放位置：${item.location || '-'}`,
         `有效期：${item.expiryDate || '-'}`,
-        ``,
-        `ID: ${item.id}`,
-        `生成时间：${new Date().toLocaleString('zh-CN')}`
+        `库存ID：${item.id}`
       ]
       return lines.join('\n')
     },
